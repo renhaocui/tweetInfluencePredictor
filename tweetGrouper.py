@@ -92,22 +92,22 @@ def brandGrouper(groupTitle, groupSize):
         brand = item['brand']
         if brand in brandMapper:
             outputFileList[brandMapper[brand]].write(line)
-        idMapper[item['id']] = brand
+            idMapper[str(item['id'])] = brandMapper[brand]
 
     for line in lengthFile:
         items = line.strip().split(' :: ')
-        if items[1] in brandMapper:
-            lengthFileList[brandMapper[items[1]]].write(line)
+        if items[1] in idMapper:
+            lengthFileList[idMapper[items[1]]].write(line)
 
     for line in headCountFile:
         items = line.strip().split(' :: ')
-        if items[1] in brandMapper:
-            headFileList[brandMapper[items[1]]].write(line)
+        if items[1] in idMapper:
+            headFileList[idMapper[items[1]]].write(line)
 
     for line in POSCountFile:
         items = line.strip().split(' :: ')
-        if items[1] in brandMapper:
-            POSCountFileList[brandMapper[items[1]]].write(line)
+        if items[1] in idMapper:
+            POSCountFileList[idMapper[items[1]]].write(line)
 
     for index in range(groupSize):
         outputFileList[index].close()
@@ -211,7 +211,7 @@ def topicGrouper(groupSize):
 
     topicMapper = {}
     for index, value in topicOut.items():
-        topicMapper[data[index]['id']] = value[0]
+        topicMapper[str(data[index]['id'])] = value[0]
 
     inputFile = open('dataset/experiment/clean.labeled', 'r')
     lengthFile = open('dataset/experiment/parser/clean.length', 'r')
@@ -236,7 +236,7 @@ def topicGrouper(groupSize):
 
     for line in inputFile:
         item = json.loads(line.strip())
-        id = item['id']
+        id = str(item['id'])
         if id in topicMapper:
             outputFileList[topicMapper[id]].write(line)
 
@@ -289,7 +289,7 @@ def similarityGrouper(groupSize):
     kmeans = cluster.KMeans(n_clusters=groupSize, init='k-means++')
     kmeans.fit(matrix)
     for index, label in enumerate(kmeans.labels_):
-        idMapper[ids[index]] = label
+        idMapper[str(ids[index])] = label
 
     inputFile = open('dataset/experiment/clean.labeled', 'r')
     posParseLengthFile = open('dataset/experiment/parser/clean.length', 'r')
@@ -316,7 +316,7 @@ def similarityGrouper(groupSize):
 
     for line in inputFile:
         item = json.loads(line.strip())
-        id = item['id']
+        id = str(item['id'])
         if id in idMapper:
             outputFileList[idMapper[id]].write(line)
             # posDetailData[id] = [idMapper[items[5]], items[4], items[0], items[1], items[2], items[3]]
@@ -371,7 +371,6 @@ def totalGrouper():
 
 if __name__ == '__main__':
     # totalGrouper()
-    # brandGrouper('brandGroup', 3)
-    # brandGrouper('brandGroup', 3)
-    # similarityGrouper(5)
+    #brandGrouper('brandGroup', 3)
+    #similarityGrouper(5)
     topicGrouper(5)
