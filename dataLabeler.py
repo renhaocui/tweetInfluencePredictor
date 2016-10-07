@@ -9,7 +9,7 @@ sys.setdefaultencoding('utf8')
 
 filterTerms = ['iphone 7', 'pikachu', 'pokemon go']
 
-def label():
+def label(mode):
     print 'extracting outliers...'
     brandList = []
     listFile = open('brand.list', 'r')
@@ -97,13 +97,66 @@ def label():
                 totalCleanScore.append(item['score'])
                 totalCleanData.append(item)
 
-        # label post with 1-10 score
-        cleanSize = len(cleanScore)
-        binSize = cleanSize/10
-        threshold = binSize
-        labelScore = 1
-        for count, item in enumerate(cleanData):
-            if count <= threshold or labelScore == 10:
+        outLierFile.close()
+
+        maxScore = max(cleanScore)
+        minScore = min(cleanScore)
+        normalScores = []
+        for score in cleanScore:
+            normalScores.append((score - minScore) / (maxScore - minScore))
+        stdevScore = stat.stdev(normalScores)
+        meanScore = stat.mean(normalScores)
+        print 'mean: ' + str(meanScore)
+        print 'stdev: ' + str(stdevScore)
+        print 'mdean: ' + str(stat.median(normalScores))
+        if stdevScore >= meanScore:
+            print 'TRUE'
+        else:
+            print 'FALSE'
+        print ''
+
+        if mode == 1:
+            # label post with 1-10 score
+            cleanSize = len(cleanScore)
+            binSize = cleanSize/10
+            threshold = binSize
+            labelScore = 1
+            for count, item in enumerate(cleanData):
+                if count <= threshold or labelScore == 10:
+                    hashtagOutput = ''
+                    mentionsOutput = ''
+                    for ht in item['hashtags']:
+                        if ht not in hashtagList:
+                            hashtagList.add(ht)
+                        hashtagOutput += ht + ';'
+                    if hashtagOutput == '':
+                        hashtagOutput = 'NONE'
+                    else:
+                        hashtagOutput = hashtagOutput[:-1]
+                    for ment in item['mentions']:
+                        if ment not in mentionList:
+                            mentionList.add(ment)
+                        mentionsOutput += ment + ';'
+                    if mentionsOutput == '':
+                        mentionsOutput = 'NONE'
+                    else:
+                        mentionsOutput = mentionsOutput[:-1]
+                    try:
+                        totalDisplayFile.write(brand+' | '+str(labelScore)+' | '+day+' | '+hour+' | '+unicode(item['content'], errors='ignore')+' | '+str(item['id'])+' | '+hashtagOutput+' | '+mentionsOutput+'\n')
+                        item['label'] = labelScore
+                        totalOutputFile.write(json.dumps(item)+'\n')
+                    except:
+                        print content
+                else:
+                    threshold += binSize
+                    labelScore += 1
+        else:
+            # label with normalized scores
+            scoreDistFile = open('dataset/stats/scoreDist.'+brand, 'w')
+            for index, normalScore in enumerate(normalScores):
+                item = cleanData[index]
+                score = normalScore * 10
+                scoreDistFile.write(str(score)+'\n')
                 hashtagOutput = ''
                 mentionsOutput = ''
                 for ht in item['hashtags']:
@@ -123,33 +176,13 @@ def label():
                 else:
                     mentionsOutput = mentionsOutput[:-1]
                 try:
-                    totalDisplayFile.write(brand+' | '+str(labelScore)+' | '+day+' | '+hour+' | '+unicode(item['content'], errors='ignore')+' | '+str(item['id'])+' | '+hashtagOutput+' | '+mentionsOutput+'\n')
-                    item['label'] = labelScore
+                    totalDisplayFile.write(brand+' | '+str(score)+' | '+day+' | '+hour+' | '+unicode(item['content'], errors='ignore')+' | '+str(item['id'])+' | '+hashtagOutput+' | '+mentionsOutput+'\n')
+                    item['label'] = score
                     totalOutputFile.write(json.dumps(item)+'\n')
                 except:
                     print content
-            else:
-                threshold += binSize
-                labelScore += 1
 
-
-        maxScore = max(cleanScore)
-        minScore = min(cleanScore)
-
-        normalScores = []
-        for score in cleanScore:
-            normalScores.append((score - minScore)/(maxScore - minScore))
-        stdevScore = stat.stdev(normalScores)
-        meanScore = stat.mean(normalScores)
-        print 'mean: '+str(meanScore)
-        print 'stdev: '+str(stdevScore)
-        print 'mdean: '+str(stat.median(normalScores))
-        if stdevScore >= meanScore:
-            print 'TRUE'
-        else:
-            print 'FALSE'
-        print ''
-        outLierFile.close()
+            scoreDistFile.close()
 
     hashtagFile = open('dataset/experiment/hashtag.list', 'w')
     mentionFile = open('dataset/experiment/mention.list', 'w')
@@ -164,5 +197,25 @@ def label():
     totalOutputFile.close()
 
 
+def scoreFileBlender():
+    data = []
+    listFile = open('brand.list', 'r')
+    for line in listFile:
+        brand = line.strip()
+        inputFile = open('dataset/stats/scoreDist.' + brand, 'r')
+        for line in inputFile:
+            data.append(float(line.strip()))
+        inputFile.close()
+    listFile.close()
+
+    sorted_data = sorted(data, reverse=True)
+
+    outputFile = open('dataset/stats/scoreDist.total', 'w')
+    for num in sorted_data:
+        outputFile.write(str(num)+'\n')
+    outputFile.close()
+
+
 if __name__ == "__main__":
-    label()
+    #label(2)
+    scoreFileBlender()

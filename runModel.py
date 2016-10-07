@@ -12,7 +12,7 @@ from sklearn.model_selection import train_test_split
 from tokenizer import simpleTokenize
 from scipy.sparse import hstack, csr_matrix
 from sklearn import svm
-from sklearn.neural_network import MLPClassifier
+#from sklearn.neural_network import MLPClassifier
 from sklearn.ensemble import ExtraTreesClassifier
 from sklearn import linear_model
 # from sklearn.metrics import confusion_matrix
@@ -21,6 +21,7 @@ from sklearn.ensemble import AdaBoostClassifier
 from sklearn.naive_bayes import MultinomialNB
 import sys
 from sklearn.metrics import mean_squared_error
+from sklearn.metrics import r2_score
 
 reload(sys)
 sys.setdefaultencoding('utf8')
@@ -209,13 +210,14 @@ def runModel(groupSize, groupTitle, vectorMode, featureMode, trainMode):
             resultFile.write('vector and semantic features \n')
             features = hstack((vectorMatrix, csr_matrix(numpy.array(semanticFeatures))), format='csr')
 
-        #precisionSum = 0.0
-        #recallSum = 0.0
+        precisionSum = 0.0
+        recallSum = 0.0
+        F1Sum = 0.0
         R2Sum = 0.0
-        #aucSum = 0.0
-        classSum1 = 0.0
-        classSum2 = 0.0
+        aucSum = 0.0
         MSESum = 0.0
+        accuracy1Sum = 0.0
+        accuracy2Sum = 0.0
         resultFile.flush()
         print 'running 5-fold CV...'
         for i in range(5):
@@ -223,7 +225,6 @@ def runModel(groupSize, groupTitle, vectorMode, featureMode, trainMode):
             feature_train, feature_test, label_train, label_test = train_test_split(features, classes, test_size=0.2, random_state=0)
 
             if trainMode == 'MaxEnt':
-                # this requires scikit-learn 0.18
                 # model = MLPClassifier(algorithm='sgd', activation='logistic', learning_rate_init=0.02, learning_rate='constant', batch_size=10)
                 model = linear_model.LogisticRegression()
             elif trainMode == 'NaiveBayes':
@@ -234,99 +235,124 @@ def runModel(groupSize, groupTitle, vectorMode, featureMode, trainMode):
                 model = AdaBoostClassifier()
             elif trainMode == 'LR':
                 model = linear_model.LinearRegression()
+            elif trainMode == 'SVR':
+                model = svm.SVR()
             else:
                 model = svm.SVC()
 
             model.fit(feature_train, label_train)
             predictions = model.predict(feature_test)
 
-            correctCount1 = 0.0
-            correctCount2 = 0.0
-            totalCount = 0.0
-            for index, label in enumerate(predictions):
-                if label-1 <= label_test[index] <= label+1:
-                    correctCount2 += 1.0
-                if round(label) == label_test[index]:
-                    correctCount1 += 1.0
-                totalCount += 1.0
-
-            classSum1 += correctCount1/totalCount
-            classSum2 += correctCount2/totalCount
-            '''
-            correctCount = 0.0
-            totalCount = 0.0
-            if len(predictions) != len(label_test):
-                print 'inference error!'
-                resultFile.write('inferece error!\n')
-
-            for index, label in enumerate(predictions):
-                if label == 1:
-                    if label_test[index] == 1:
-                        correctCount += 1
-                    totalCount += 1
-            if totalCount == 0:
-                precision = 0
-            else:
-                precision = correctCount / totalCount
-            recall = correctCount / label_test.count(1)
-
-            #auc = roc_auc_score(label_test, predictions)
-            #aucSum += auc
-            # print confusion_matrix(label_test, predictions)
-
+            binaryPreds = scoreToBinary(predictions)
+            binaryTestLabels = scoreToBinary(label_test)
+            precision, recall, F1, auc = evaluate(binaryPreds, binaryTestLabels, 2)
+            accuracy1, accuracy2 = evaluate(predictions, label_test, 1)
             precisionSum += precision
             recallSum += recall
-            '''
-            R2Sum += model.score(feature_test, label_test)
+            F1Sum += F1
+            aucSum += auc
+            R2Sum += r2_score(label_test, predictions)
             MSESum += mean_squared_error(label_test, predictions)
+            accuracy1Sum += accuracy1
+            accuracy2Sum += accuracy2
 
-        outputMSE = MSESum/5
-        #outputPrecision = precisionSum / 5
-        #outputRecall = recallSum / 5
+        outputF1 = F1Sum/5
+        outputPrecision = precisionSum / 5
+        outputRecall = recallSum / 5
         outputR2 = R2Sum / 5
-        outputClass1 = classSum1/5
-        outputClass2 = classSum2/5
+        outputMSE = MSESum / 5
+        outputAUC = aucSum / 5
+        outputAccuracy1 = accuracy1Sum / 5
+        outputAccuracy2 = accuracy2Sum / 5
         '''
         if (outputRecall + outputPrecision) == 0:
             outputF1 = 0.0
         else:
             outputF1 = 2 * outputRecall * outputPrecision / (outputRecall + outputPrecision)
         '''
-        #print outputPrecision
-        #print outputRecall
-        #print outputF1
-        #print aucSum / 5
+        print outputPrecision
+        print outputRecall
+        print outputF1
+        print outputAUC
         print outputR2
         print outputMSE
-        print outputClass1
-        print outputClass2
+        print outputAccuracy1
+        print outputAccuracy2
+
         print ''
-        #resultFile.write(str(outputPrecision) + '\n')
-        #resultFile.write(str(outputRecall) + '\n')
-        #resultFile.write(str(outputF1) + '\n')
+        resultFile.write(str(outputPrecision) + '\n')
+        resultFile.write(str(outputRecall) + '\n')
+        resultFile.write(str(outputF1) + '\n')
+        resultFile.write(str(outputAUC) + '\n')
         resultFile.write(str(outputR2) + '\n')
         resultFile.write(str(outputMSE)+'\n')
-        resultFile.write(str(outputClass1)+'\n')
-        resultFile.write(str(outputClass2)+'\n')
+        resultFile.write(str(outputAccuracy1)+'\n')
+        resultFile.write(str(outputAccuracy2)+'\n')
         resultFile.write('\n')
         resultFile.flush()
 
     resultFile.close()
+
+def scoreToBinary(inputList):
+    outputList = []
+    for item in inputList:
+        if item >= 7.0:
+            outputList.append(1)
+        else:
+            outputList.append(0)
+
+    return outputList
+
+def evaluate(predictions, test_labels, mode):
+    if len(predictions) != len(test_labels):
+        print 'prediction error!'
+        return 404
+    if mode == 1:
+        total = 0.0
+        correct1 = 0.0
+        correct2 = 0.0
+        for index, label in enumerate(predictions):
+            total += 1.0
+            if round(label) == test_labels[index]:
+                correct1 += 1.0
+            if label-1 <= test_labels[index] <= label+1:
+                correct2 += 1.0
+        return correct1/total, correct2/total
+    else:
+        total = 0.0
+        correct = 0.0
+        for index, label in enumerate(predictions):
+            if label == 1:
+                if test_labels[index] == 1:
+                    correct += 1
+                total += 1
+        if total == 0:
+            precision = 0
+        else:
+            precision = correct / total
+        recall = correct / test_labels.count(1)
+        if (recall + precision) == 0:
+            F1 = 0.0
+        else:
+            F1 = 2 * recall * precision / (recall + precision)
+        auc = roc_auc_score(test_labels, predictions)
+        return precision, recall, F1, auc
 
 
 if __name__ == "__main__":
     # vectorMode 1: tfidf, 2: binaryCount, 3:LDA dist
     # featureMode 0: content only, 1: ngram only, 2: embedding only, 3: embedding and semantic, 4: content and ngram
 
-    runModel(1, 'totalGroup', 2, 4, 'LR')
-    runModel(3, 'brandGroup', 2, 4, 'LR')
-    runModel(5, 'simGroup', 2, 4, 'LR')
-    runModel(5, 'topicGroup', 2, 4, 'LR')
+    #runModel(1, 'totalGroup', 2, 1, 'LR')
+    #runModel(1, 'totalGroup', 2, 4, 'LR')
 
-    '''
-    #run(3, 'brandGroup', 0, 0, 'SVM', outputFile=outputFilename)
-    #run(3, 'subBrandGroup', 0, 0, 'SVM',outputFile=outputFilename)
-    #run(5, 'topicGroup', 0, 0, 'SVM', outputFile=outputFilename)
-    #run(5, 'simGroup', 0, 0, 'SVM', outputFile=outputFilename)
-    #run(1, 'totalGroup', 0, 0, 'RF', outputFile=outputFilename)
-    '''
+
+    #runModel(1, 'totalGroup', 2, 1, 'SVR')
+    runModel(1, 'totalGroup', 2, 4, 'SVR')
+    runModel(3, 'brandGroup', 2, 4, 'SVR')
+    runModel(5, 'simGroup', 2, 4, 'SVR')
+    runModel(5, 'topicGroup', 2, 4, 'SVR')
+
+    runModel(3, 'brandGroup', 2, 1, 'LR')
+    runModel(5, 'simGroup', 2, 1, 'LR')
+    runModel(5, 'topicGroup', 2, 1, 'LR')
