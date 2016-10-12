@@ -12,11 +12,11 @@ from sklearn.model_selection import train_test_split
 from tokenizer import simpleTokenize
 from scipy.sparse import hstack, csr_matrix
 from sklearn import svm
-#from sklearn.neural_network import MLPClassifier
+from sklearn.neural_network import MLPClassifier
 from sklearn.ensemble import ExtraTreesClassifier
 from sklearn import linear_model
 # from sklearn.metrics import confusion_matrix
-from sklearn.metrics import roc_auc_score
+#from sklearn.metrics import roc_auc_score
 from sklearn.ensemble import AdaBoostClassifier
 from sklearn.naive_bayes import MultinomialNB
 import sys
@@ -42,7 +42,7 @@ def stemContent(input):
 
 # vectorMode 1: tfidf, 2: binaryCount
 # featureMode 0: semantic only, 1: vector only, 2: both
-def runModel(groupSize, groupTitle, vectorMode, featureMode, trainMode):
+def runModel(groupSize, groupTitle, vectorMode, featureMode, trainMode, labelMode):
     outputFile = 'results/'+groupTitle+'_'+trainMode+'.result'
     resultFile = open(outputFile, 'a')
     mentionMapper = utilities.mapMention('dataset/experiment/mention.json')
@@ -83,7 +83,13 @@ def runModel(groupSize, groupTitle, vectorMode, featureMode, trainMode):
             days.append(dayMapper[item['day']])
             contents.append(item['content'])
             scores.append(float(item['score']))
-            labels.append(item['label'])
+            if labelMode == 1:
+                labels.append(item['label'])
+            else:
+                if item['label'] > 7:
+                    labels.append(1)
+                else:
+                    labels.append(0)
 
         distMapper = {}
 
@@ -237,15 +243,19 @@ def runModel(groupSize, groupTitle, vectorMode, featureMode, trainMode):
                 model = linear_model.LinearRegression()
             elif trainMode == 'SVR':
                 model = svm.SVR()
-            else:
+            elif trainMode == 'Pass':
+                model = linear_model.PassiveAggressiveRegressor()
+            elif trainMode == 'SVM':
                 model = svm.SVC()
+            else:
+                model = MLPClassifier(algorithm='sgd', activation='logistic', learning_rate_init=0.02, learning_rate='constant', batch_size=10)
 
             model.fit(feature_train, label_train)
             predictions = model.predict(feature_test)
 
             binaryPreds = scoreToBinary(predictions)
-            binaryTestLabels = scoreToBinary(label_test)
-            precision, recall, F1, auc = evaluate(binaryPreds, binaryTestLabels, 2)
+            #binaryTestLabels = scoreToBinary(label_test)
+            precision, recall, F1, auc = evaluate(predictions, label_test, 2)
             accuracy1, accuracy2 = evaluate(predictions, label_test, 1)
             precisionSum += precision
             recallSum += recall
@@ -335,24 +345,21 @@ def evaluate(predictions, test_labels, mode):
             F1 = 0.0
         else:
             F1 = 2 * recall * precision / (recall + precision)
-        auc = roc_auc_score(test_labels, predictions)
-        return precision, recall, F1, auc
+        #auc = roc_auc_score(test_labels, predictions)
+        return precision, recall, F1, 0.0
 
 
 if __name__ == "__main__":
     # vectorMode 1: tfidf, 2: binaryCount, 3:LDA dist
     # featureMode 0: content only, 1: ngram only, 2: embedding only, 3: embedding and semantic, 4: content and ngram
 
-    #runModel(1, 'totalGroup', 2, 1, 'LR')
-    #runModel(1, 'totalGroup', 2, 4, 'LR')
+    #runModel(1, 'totalGroup', 2, 1, 'MLP', 2)
+    runModel(1, 'totalGroup', 2, 4, 'SVM', 1)
+    #runModel(3, 'brandGroup', 2, 1, 'Pass')
+    #runModel(5, 'simGroup', 2, 1, 'Pass')
+    #runModel(5, 'topicGroup', 2, 1, 'Pass')
 
-
-    #runModel(1, 'totalGroup', 2, 1, 'SVR')
-    runModel(1, 'totalGroup', 2, 4, 'SVR')
-    runModel(3, 'brandGroup', 2, 4, 'SVR')
-    runModel(5, 'simGroup', 2, 4, 'SVR')
-    runModel(5, 'topicGroup', 2, 4, 'SVR')
-
-    runModel(3, 'brandGroup', 2, 1, 'LR')
-    runModel(5, 'simGroup', 2, 1, 'LR')
-    runModel(5, 'topicGroup', 2, 1, 'LR')
+    #runModel(1, 'totalGroup', 2, 4, 'Pass')
+    #runModel(3, 'brandGroup', 2, 4, 'Pass')
+    #runModel(5, 'simGroup', 2, 4, 'Pass')
+    #runModel(5, 'topicGroup', 2, 4, 'Pass')

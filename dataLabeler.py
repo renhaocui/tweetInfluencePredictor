@@ -217,5 +217,5 @@ def scoreFileBlender():
 
 
 if __name__ == "__main__":
-    #label(2)
-    scoreFileBlender()
+    label(1)
+    #scoreFileBlender()

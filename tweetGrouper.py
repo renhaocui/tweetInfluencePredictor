@@ -370,7 +370,7 @@ def totalGrouper():
 
 
 if __name__ == '__main__':
-    totalGrouper()
-    brandGrouper('brandGroup', 3)
-    similarityGrouper(5)
+    #totalGrouper()
+    #brandGrouper('brandGroup', 3)
+    #similarityGrouper(5)
     topicGrouper(5)
