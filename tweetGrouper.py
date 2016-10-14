@@ -1,11 +1,10 @@
+__author__ = 'rencui'
 import subprocess
 import operator
 from sklearn.feature_extraction.text import *
 from sklearn import cluster
 import shutil
 import json
-
-__author__ = 'rencui'
 
 
 def analysisByDay():

@@ -1,6 +1,5 @@
-import json
-
 __author__ = 'rencui'
+import json
 from afinn import Afinn
 import subprocess
 import numpy

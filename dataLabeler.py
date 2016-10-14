@@ -26,8 +26,8 @@ def label(mode):
     totalDisplayFile = open('dataset/experiment/clean.display', 'w')
     totalOutputFile = open('dataset/experiment/clean.labeled', 'w')
     statFile = open('dataset/analysis/stat.total', 'w')
-    totalCleanScore = []
-    totalCleanData = []
+    #totalCleanScore = []
+    #totalCleanData = []
 
     mentionList = set()
     hashtagList = set()
@@ -86,7 +86,7 @@ def label(mode):
 
         cleanData = []
         cleanScore = []
-        sorted_output = sorted(outputData, key=lambda x: x['zScore'])
+        sorted_output = sorted(outputData, key=lambda x: x['score'])
         for item in reversed(sorted_output):
             z = item['zScore']
             if z > 2:
@@ -94,8 +94,8 @@ def label(mode):
             else:
                 cleanData.append(item)
                 cleanScore.append(item['score'])
-                totalCleanScore.append(item['score'])
-                totalCleanData.append(item)
+                #totalCleanScore.append(item['score'])
+                #totalCleanData.append(item)
 
         outLierFile.close()
 
