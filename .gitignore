@@ -53,3 +53,4 @@ parser/*
 LDA/*
 TweeboParser/*
 results/*
+outputs/*

@@ -15,12 +15,13 @@ from sklearn.neural_network import MLPClassifier
 from sklearn.ensemble import ExtraTreesClassifier
 from sklearn import linear_model
 # from sklearn.metrics import confusion_matrix
-#from sklearn.metrics import roc_auc_score
+from sklearn.metrics import roc_auc_score
 from sklearn.ensemble import AdaBoostClassifier
 from sklearn.naive_bayes import MultinomialNB
 import sys
 from sklearn.metrics import mean_squared_error
 from sklearn.metrics import r2_score
+import operator
 
 reload(sys)
 sys.setdefaultencoding('utf8')
@@ -41,8 +42,8 @@ def stemContent(input):
 
 # vectorMode 1: tfidf, 2: binaryCount
 # featureMode 0: semantic only, 1: vector only, 2: both
-def runModel(groupSize, groupTitle, vectorMode, featureMode, trainMode, labelMode):
-    outputFile = 'results/'+groupTitle+'_'+trainMode+'.result'
+def runModel(groupSize, groupTitle, vectorMode, featureMode, trainMode, labelMode, recordProb):
+    outputFile = 'results/' + groupTitle + '_' + trainMode + '.result'
     resultFile = open(outputFile, 'a')
     mentionMapper = utilities.mapMention('dataset/experiment/mention.json')
 
@@ -228,7 +229,6 @@ def runModel(groupSize, groupTitle, vectorMode, featureMode, trainMode, labelMod
         for i in range(5):
             print 'case ' + str(i)
             feature_train, feature_test, label_train, label_test = train_test_split(features, classes, test_size=0.2, random_state=0)
-
             if trainMode == 'MaxEnt':
                 # model = MLPClassifier(algorithm='sgd', activation='logistic', learning_rate_init=0.02, learning_rate='constant', batch_size=10)
                 model = linear_model.LogisticRegression()
@@ -245,15 +245,47 @@ def runModel(groupSize, groupTitle, vectorMode, featureMode, trainMode, labelMod
             elif trainMode == 'Pass':
                 model = linear_model.PassiveAggressiveRegressor()
             elif trainMode == 'SVM':
-                model = svm.SVC()
+                model = svm.SVC(probability=True)
             else:
-                model = MLPClassifier(algorithm='sgd', activation='logistic', learning_rate_init=0.02, learning_rate='constant', batch_size=10)
+                model = MLPClassifier(activation='logistic', learning_rate_init=0.02, learning_rate='constant', batch_size=50)
 
             model.fit(feature_train, label_train)
             predictions = model.predict(feature_test)
+            if recordProb:
+                trainOutputFile = open('outputs/' + groupTitle + '/' + trainMode + '/' + str(featureMode) + '.' + str(i) + '.train', 'w')
+                testOutputFile = open('outputs/' + groupTitle + '/' + trainMode + '/' + str(featureMode) + '.' + str(i) + '.test', 'w')
+                trainProb = model.predict_proba(feature_train)
+                testProb = model.predict_proba(feature_test)
+                labelList = model.classes_
+                testOutput = {}
+                for num, probs in enumerate(testProb):
+                    temp = {}
+                    for index, prob in enumerate(probs):
+                        inferTopic = labelList[index]
+                        temp[inferTopic] = prob
+                    sorted_temp = sorted(temp.items(), key=operator.itemgetter(1), reverse=True)
+                    outList = {}
+                    for topic, prob in sorted_temp:
+                        outList[topic] = prob
+                    testOutput[num] = outList
+                testOutputFile.write(json.dumps(testOutput))
+                trainOutput = {}
+                for num, probs in enumerate(trainProb):
+                    temp = {}
+                    for index, prob in enumerate(probs):
+                        inferTopic = labelList[index]
+                        temp[inferTopic] = prob
+                    sorted_temp = sorted(temp.items(), key=operator.itemgetter(1), reverse=True)
+                    outList = {}
+                    for topic, prob in sorted_temp:
+                        outList[topic] = prob
+                    trainOutput[num] = outList
+                trainOutputFile.write(json.dumps(trainOutput))
+                testOutputFile.close()
+                trainOutputFile.close()
 
-            binaryPreds = scoreToBinary(predictions)
-            #binaryTestLabels = scoreToBinary(label_test)
+            # binaryPreds = scoreToBinary(predictions)
+            # binaryTestLabels = scoreToBinary(label_test)
             precision, recall, F1, auc = evaluate(predictions, label_test, 2)
             accuracy1, accuracy2 = evaluate(predictions, label_test, 1)
             precisionSum += precision
@@ -265,7 +297,7 @@ def runModel(groupSize, groupTitle, vectorMode, featureMode, trainMode, labelMod
             accuracy1Sum += accuracy1
             accuracy2Sum += accuracy2
 
-        outputF1 = F1Sum/5
+        outputF1 = F1Sum / 5
         outputPrecision = precisionSum / 5
         outputRecall = recallSum / 5
         outputR2 = R2Sum / 5
@@ -294,23 +326,25 @@ def runModel(groupSize, groupTitle, vectorMode, featureMode, trainMode, labelMod
         resultFile.write(str(outputF1) + '\n')
         resultFile.write(str(outputAUC) + '\n')
         resultFile.write(str(outputR2) + '\n')
-        resultFile.write(str(outputMSE)+'\n')
-        resultFile.write(str(outputAccuracy1)+'\n')
-        resultFile.write(str(outputAccuracy2)+'\n')
+        resultFile.write(str(outputMSE) + '\n')
+        resultFile.write(str(outputAccuracy1) + '\n')
+        resultFile.write(str(outputAccuracy2) + '\n')
         resultFile.write('\n')
         resultFile.flush()
 
     resultFile.close()
 
+
 def scoreToBinary(inputList):
     outputList = []
     for item in inputList:
-        if item >= 7.0:
+        if item > 7.0:
             outputList.append(1)
         else:
             outputList.append(0)
 
     return outputList
+
 
 def evaluate(predictions, test_labels, mode):
     if len(predictions) != len(test_labels):
@@ -324,9 +358,9 @@ def evaluate(predictions, test_labels, mode):
             total += 1.0
             if round(label) == test_labels[index]:
                 correct1 += 1.0
-            if label-1 <= test_labels[index] <= label+1:
+            if label - 1 <= test_labels[index] <= label + 1:
                 correct2 += 1.0
-        return correct1/total, correct2/total
+        return correct1 / total, correct2 / total
     else:
         total = 0.0
         correct = 0.0
@@ -344,21 +378,22 @@ def evaluate(predictions, test_labels, mode):
             F1 = 0.0
         else:
             F1 = 2 * recall * precision / (recall + precision)
-        #auc = roc_auc_score(test_labels, predictions)
-        return precision, recall, F1, 0.0
+        auc = roc_auc_score(test_labels, predictions)
+        return precision, recall, F1, auc
 
 
 if __name__ == "__main__":
     # vectorMode 1: tfidf, 2: binaryCount, 3:LDA dist
     # featureMode 0: content only, 1: ngram only, 2: embedding only, 3: embedding and semantic, 4: content and ngram
 
-    #runModel(1, 'totalGroup', 2, 1, 'MLP', 2)
-    runModel(1, 'totalGroup', 2, 4, 'SVM', 1)
-    #runModel(3, 'brandGroup', 2, 1, 'Pass')
-    #runModel(5, 'simGroup', 2, 1, 'Pass')
-    #runModel(5, 'topicGroup', 2, 1, 'Pass')
+    #runModel(1, 'totalGroup', 2, 0, 'MaxEnt', 2, True)
+    runModel(1, 'totalGroup', 2, 0, 'MaxEnt', 2, True)
+    runModel(1, 'totalGroup', 2, 0, 'SVM', 2, True)
+    #runModel(1, 'totalGroup', 2, 0, 'SVM', 2, True)
+    # runModel(5, 'simGroup', 2, 1, 'Pass')
+    # runModel(5, 'topicGroup', 2, 1, 'Pass')
 
-    #runModel(1, 'totalGroup', 2, 4, 'Pass')
-    #runModel(3, 'brandGroup', 2, 4, 'Pass')
-    #runModel(5, 'simGroup', 2, 4, 'Pass')
-    #runModel(5, 'topicGroup', 2, 4, 'Pass')
+    # runModel(1, 'totalGroup', 2, 4, 'Pass')
+    # runModel(3, 'brandGroup', 2, 4, 'Pass')
+    # runModel(5, 'simGroup', 2, 4, 'Pass')
+    # runModel(5, 'topicGroup', 2, 4, 'Pass')
