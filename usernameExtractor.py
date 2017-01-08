@@ -42,6 +42,7 @@ def collector():
     outputList = []
     tempList = []
     requestCount = 0
+    print 'Collecting...'
     for index, userId in enumerate(nameList):
         if requestCount > requestLimit:
             print 'waiting for 15m...'

@@ -4,10 +4,11 @@ import json
 import statistics as stat
 import tweetTextCleaner
 import sys
+from datetime import datetime
 reload(sys)
 sys.setdefaultencoding('utf8')
 
-filterTerms = ['iphone 7', 'pikachu', 'pokemon go']
+filterTerms = ['iphone 7', 'pikachu', 'pokemon go', 'macbook pro']
 
 def label(mode):
     print 'extracting outliers...'
@@ -61,19 +62,35 @@ def label(mode):
                 if not filtered:
                     content = tweetTextCleaner.tweetCleaner(text)
                     finalIndex = len(data['dynamic'])-1
-                    followers = float(data['dynamic'][finalIndex]['user_followers_count'])
                     retweet = float(data['dynamic'][finalIndex]['retweet_count'])
                     favorite = float(data['dynamic'][finalIndex]['favorite_count'])
+                    followers = float(data['dynamic'][finalIndex]['user_followers_count'])
+
                     if retweet == 0:
                         ratio = 0
                     else:
                         ratio = favorite/retweet
                     statFile.write(str(favorite)+'\t'+str(retweet)+'\t'+str(followers)+'\t'+str(ratio)+'\n')
-                    day = data['create_at'].split()[0]
-                    hour = data['create_at'].split()[3].split(':')[0]
+
+                    author_statuses_count = float(data['dynamic'][finalIndex]['user_statuses_count'])
+                    author_favorite_count = float(data['dynamic'][finalIndex]['user_favorite_count'])
+                    author_listed_count = float(data['dynamic'][finalIndex]['user_listed_count'])
+
+                    dateTemp = data['create_at'].split()
+                    day = dateTemp[0]
+                    hour = dateTemp[3].split(':')[0]
+                    postDate = dateTemp[1] + ' ' + dateTemp[2] + ' ' + dateTemp[5]
+                    dateTemp = data['user_create_at'].split()
+                    authorDate = dateTemp[1] + ' ' + dateTemp[2] + ' ' + dateTemp[5]
+                    postData_object = datetime.strptime(postDate, '%b %d %Y')
+                    authorData_object = datetime.strptime(authorDate, '%b %d %Y')
+                    authorInterval = float((postData_object - authorData_object).days)
+
                     if followers > 0:
                         labelScore = (2.0*retweet + favorite)*10000/followers
-                        brandData.append({'brand': brand,'content': content, 'score': labelScore, 'id': tweetID, 'day': day, 'hour': hour, 'mentions': data['mentions'], 'hashtags': data['hashtags']})
+                        brandData.append({'brand': brand,'content': content, 'score': labelScore, 'id': tweetID, 'day': day, 'hour': hour, 'mentions': data['mentions'], 'hashtags': data['hashtags'],
+                                          'author_statuses_count': author_statuses_count, 'author_favorite_count': author_favorite_count, 'author_listed_count': author_listed_count,
+                                          'authorInterval': authorInterval, 'author_followers_count': followers})
                         brandScoreList.append(labelScore)
 
         zScores = stats.zscore(brandScoreList)
@@ -110,9 +127,9 @@ def label(mode):
         print 'stdev: ' + str(stdevScore)
         print 'mdean: ' + str(stat.median(normalScores))
         if stdevScore >= meanScore:
-            print 'TRUE'
+            print 'CAUTION'
         else:
-            print 'FALSE'
+            print 'PASS'
         print ''
 
         if mode == 1:
@@ -150,6 +167,43 @@ def label(mode):
                 else:
                     threshold += binSize
                     labelScore += 1
+        elif mode == 2:
+            # binary label (0, 1)
+            cleanSize = len(cleanScore)
+            for count, item in enumerate(cleanData):
+                hashtagOutput = ''
+                mentionsOutput = ''
+                for ht in item['hashtags']:
+                    if ht not in hashtagList:
+                        hashtagList.add(ht)
+                    hashtagOutput += ht + ';'
+                if hashtagOutput == '':
+                    hashtagOutput = 'NONE'
+                else:
+                    hashtagOutput = hashtagOutput[:-1]
+                for ment in item['mentions']:
+                    if ment not in mentionList:
+                        mentionList.add(ment)
+                    mentionsOutput += ment + ';'
+                if mentionsOutput == '':
+                    mentionsOutput = 'NONE'
+                else:
+                    mentionsOutput = mentionsOutput[:-1]
+
+                if count <= cleanSize / 2:
+                    labelScore = 1
+                else:
+                    labelScore = 0
+                item['label'] = labelScore
+                totalOutputFile.write(json.dumps(item) + '\n')
+                try:
+                    totalDisplayFile.write(
+                        brand + ' | ' + str(labelScore) + ' | ' + day + ' | ' + hour + ' | ' + unicode(
+                            item['content'], errors='ignore') + ' | ' + str(
+                            item['id']) + ' | ' + hashtagOutput + ' | ' + mentionsOutput + '\n')
+                except:
+                    print content
+
         else:
             # label with normalized scores
             scoreDistFile = open('dataset/stats/scoreDist.'+brand, 'w')
@@ -217,5 +271,5 @@ def scoreFileBlender():
 
 
 if __name__ == "__main__":
-    label(1)
+    label(2)
     #scoreFileBlender()

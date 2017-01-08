@@ -10,7 +10,7 @@ import usernameExtractor
 # blender the brand dataset
 tweetBlender.blend(300, 0)
 # remove outliers and assign labels
-dataLabeler.label()
+dataLabeler.label(2)
 # extract content and parse
 contenter.contenterExtractor()
 # need to run TweeboParser here
