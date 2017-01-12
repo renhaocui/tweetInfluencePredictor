@@ -87,7 +87,7 @@ def label(mode):
                     authorInterval = float((postData_object - authorData_object).days)
 
                     if followers > 0:
-                        labelScore = (2.0*retweet + favorite)*10000/followers
+                        labelScore = (2.0 * retweet + favorite) * 10000 / followers
                         brandData.append({'brand': brand,'content': content, 'score': labelScore, 'id': tweetID, 'day': day, 'hour': hour, 'mentions': data['mentions'], 'hashtags': data['hashtags'],
                                           'author_statuses_count': author_statuses_count, 'author_favorite_count': author_favorite_count, 'author_listed_count': author_listed_count,
                                           'authorInterval': authorInterval, 'author_followers_count': followers})
@@ -137,9 +137,9 @@ def label(mode):
             cleanSize = len(cleanScore)
             binSize = cleanSize/10
             threshold = binSize
-            labelScore = 1
+            labelScore = 10
             for count, item in enumerate(cleanData):
-                if count <= threshold or labelScore == 10:
+                if count <= threshold or labelScore == 1:
                     hashtagOutput = ''
                     mentionsOutput = ''
                     for ht in item['hashtags']:
@@ -166,7 +166,7 @@ def label(mode):
                         print content
                 else:
                     threshold += binSize
-                    labelScore += 1
+                    labelScore -= 1
         elif mode == 2:
             # binary label (0, 1)
             cleanSize = len(cleanScore)
@@ -190,7 +190,7 @@ def label(mode):
                 else:
                     mentionsOutput = mentionsOutput[:-1]
 
-                if count <= cleanSize / 2:
+                if count <= 0.5 * cleanSize:
                     labelScore = 1
                 else:
                     labelScore = 0

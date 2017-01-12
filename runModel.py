@@ -7,7 +7,6 @@ import utilities
 from textstat.textstat import textstat
 from sklearn.feature_extraction.text import *
 from nltk.stem.porter import *
-from sklearn.model_selection import train_test_split
 from tokenizer import simpleTokenize
 from scipy.sparse import hstack, csr_matrix
 from sklearn import svm
@@ -15,7 +14,7 @@ from sklearn.neural_network import MLPClassifier
 from sklearn.ensemble import ExtraTreesClassifier
 from sklearn import linear_model
 # from sklearn.metrics import confusion_matrix
-from sklearn.metrics import roc_auc_score
+import sklearn.metrics
 from sklearn.ensemble import AdaBoostClassifier
 from sklearn.naive_bayes import MultinomialNB
 import sys
@@ -72,7 +71,7 @@ def dataSplit(features, labels, seed):
 
 # vectorMode 1: tfidf, 2: binaryCount
 # featureMode 0: semantic only, 1: vector only, 2: both
-def runModel(groupSize, groupTitle, vectorMode, featureMode, trainMode, labelMode, recordProb, ablationIndex):
+def runModel(groupSize, groupTitle, vectorMode, featureMode, trainMode, labelMode, evaluateMode, recordProb, ablationIndex):
     outputFile = 'results/' + groupTitle + '_' + trainMode + '.'+str(vectorMode)+'_'+str(featureMode)
     resultFile = open(outputFile, 'a')
     mentionMapper = utilities.mapMention('dataset/experiment/mention.json')
@@ -80,9 +79,11 @@ def runModel(groupSize, groupTitle, vectorMode, featureMode, trainMode, labelMod
     print groupTitle
     print trainMode
     resultFile.write(groupTitle + '\n')
+    resultFile.write('Evaluate Mode: ' + str(evaluateMode) + '\n')
     for group in range(groupSize):
         print 'group: ' + str(group)
         resultFile.write('group: ' + str(group) + '\n')
+        print 'loading data...'
         # happy_log_probs, sad_log_probs = utilities.readSentimentList('twitter_sentiment_list.csv')
         afinn = Afinn()
         inputFile = open('dataset/experiment/groups/' + groupTitle + '/data_' + str(group) + '.labeled', 'r')
@@ -107,8 +108,6 @@ def runModel(groupSize, groupTitle, vectorMode, featureMode, trainMode, labelMod
         authorFavoriteCount = []
         authorListedCount = []
         authorIntervals = []
-
-        print 'loading...'
 
         for line in inputFile:
             item = json.loads(line.strip())
@@ -281,8 +280,8 @@ def runModel(groupSize, groupTitle, vectorMode, featureMode, trainMode, labelMod
 
         print 'running 5-fold CV...'
         roundNum = 0
-        kf = KFold(5)
-        for train_indices, test_indices in kf.split(classes):
+        kf = KFold(n_splits=5)
+        for roundNum, (train_indices, test_indices) in enumerate(kf.split(classes)):
             feature_train, feature_test = features[train_indices], features[test_indices]
             label_train = []
             label_test = []
@@ -292,11 +291,9 @@ def runModel(groupSize, groupTitle, vectorMode, featureMode, trainMode, labelMod
                 label_test.append(classes[test_index])
 
             print 'Round: '+str(roundNum)
-            roundNum += 1
             #feature_train, feature_test, label_train, label_test = train_test_split(features, classes, test_size=0.2, random_state=0)
             #feature_train, feature_test, label_train, label_test = dataSplit(features, classes, i)
             if trainMode == 'MaxEnt':
-                # model = MLPClassifier(algorithm='sgd', activation='logistic', learning_rate_init=0.02, learning_rate='constant', batch_size=10)
                 model = linear_model.LogisticRegression()
             elif trainMode == 'NaiveBayes':
                 model = MultinomialNB()
@@ -313,7 +310,7 @@ def runModel(groupSize, groupTitle, vectorMode, featureMode, trainMode, labelMod
             elif trainMode == 'SVM':
                 model = svm.SVC(probability=True)
             else:
-                model = MLPClassifier(activation='logistic', learning_rate_init=0.02, learning_rate='constant', batch_size=50)
+                model = MLPClassifier(activation='logistic', learning_rate_init=0.001, learning_rate='constant', batch_size=50)
 
             model.fit(feature_train, label_train)
             predictions = model.predict(feature_test)
@@ -353,8 +350,9 @@ def runModel(groupSize, groupTitle, vectorMode, featureMode, trainMode, labelMod
 
             # binaryPreds = scoreToBinary(predictions)
             # binaryTestLabels = scoreToBinary(label_test)
-            precision, recall, F1, auc = evaluate(predictions, label_test, 2)
+            precision, recall, F1, auc = evaluate(predictions, label_test, evaluateMode)
             accuracy1, accuracy2 = evaluate(predictions, label_test, 1)
+
             precisionSum += precision
             recallSum += recall
             F1Sum += F1
@@ -405,7 +403,7 @@ def runModel(groupSize, groupTitle, vectorMode, featureMode, trainMode, labelMod
 def scoreToBinary(inputList):
     outputList = []
     for item in inputList:
-        if item > 7.0:
+        if item > 5.0:
             outputList.append(1)
         else:
             outputList.append(0)
@@ -428,24 +426,19 @@ def evaluate(predictions, test_labels, mode):
             if label - 1 <= test_labels[index] <= label + 1:
                 correct2 += 1.0
         return correct1 / total, correct2 / total
+    elif mode == 2:
+        test_labels = scoreToBinary(test_labels)
+        predictions = scoreToBinary(predictions)
+        precision = sklearn.metrics.precision_score(test_labels, predictions)
+        recall = sklearn.metrics.recall_score(test_labels, predictions)
+        F1 = sklearn.metrics.f1_score(test_labels, predictions)
+        auc = sklearn.metrics.roc_auc_score(test_labels, predictions)
+        return precision, recall, F1, auc
     else:
-        total = 0.0
-        correct = 0.0
-        for index, label in enumerate(predictions):
-            if label == 1:
-                if test_labels[index] == 1:
-                    correct += 1
-                total += 1
-        if total == 0:
-            precision = 0
-        else:
-            precision = correct / total
-        recall = correct / test_labels.count(1)
-        if (recall + precision) == 0:
-            F1 = 0.0
-        else:
-            F1 = 2 * recall * precision / (recall + precision)
-        auc = roc_auc_score(test_labels, predictions)
+        precision = sklearn.metrics.precision_score(test_labels, predictions)
+        recall = sklearn.metrics.recall_score(test_labels, predictions)
+        F1 = sklearn.metrics.f1_score(test_labels, predictions)
+        auc = sklearn.metrics.roc_auc_score(test_labels, predictions)
         return precision, recall, F1, auc
 
 
@@ -467,33 +460,32 @@ def writeLabels(groupSize, groupTitle, labelMode):
         for train_indices, test_indices in kf.split(labels):
             trainLabelFile = open('outputs/' + groupTitle + '/Labels/' + str(roundNum) + '.train', 'w')
             testLabelFile = open('outputs/' + groupTitle + '/Labels/' + str(roundNum) + '.test', 'w')
+            trainIndexFile = open('outputs/' + groupTitle + '/Index/' + str(roundNum) + '.train', 'w')
+            testIndexFile = open('outputs/' + groupTitle + '/Index/' + str(roundNum) + '.test', 'w')
             for train_index in train_indices:
                 trainLabelFile.write(str(labels[train_index])+'\n')
+                trainIndexFile.write(str(train_index)+'\n')
             for test_index in test_indices:
                 testLabelFile.write(str(labels[test_index]) + '\n')
+                testIndexFile.write(str(test_index)+'\n')
             roundNum += 1
             trainLabelFile.close()
             testLabelFile.close()
+            trainIndexFile.close()
+            testIndexFile.close()
+
+
 
 if __name__ == "__main__":
+    #groupSize, groupTitle, vectorMode, featureMode, trainMode, labelMode, evaluateMode, recordProb, ablationIndex
     # [vectorMode] 1: tfidf, 2: binaryCount, 3:LDA dist
     # [featureMode] 0: content only, 1: ngram only, 2: embedding only, 3: embedding and semantic, 4: content and ngram
-    # [ablation analysis] 9: all features
-
-    #runModel(1, 'totalGroup', 2, 0, 'MaxEnt', 2, True)
-    #runModel(1, 'totalGroup', 2, 0, 'MaxEnt', 2, True)
-
-    runModel(1, 'totalGroup', 4, 0, 'SVM', 1, True, 9)
-    runModel(1, 'totalGroup', 4, 0, 'MaxEnt', 1, True, 9)
-    runModel(1, 'totalGroup', 4, 0, 'NaiveBayes', 1, True, 9)
-
-    #runModel(1, 'totalGroup', 2, 0, 'SVM', 2, True)
-    # runModel(5, 'simGroup', 2, 1, 'Pass')
-    # runModel(5, 'topicGroup', 2, 1, 'Pass')
-
-    # runModel(1, 'totalGroup', 2, 4, 'Pass')
-    # runModel(3, 'brandGroup', 2, 4, 'Pass')
-    # runModel(5, 'simGroup', 2, 4, 'Pass')
-    # runModel(5, 'topicGroup', 2, 4, 'Pass')
+    # [ablation analysis] 100: all features
 
     #writeLabels(1, 'totalGroup', 1)
+
+    runModel(1, 'totalGroup', 2, 1, 'SVM', 1, 2, True, 100)
+    runModel(1, 'totalGroup', 2, 1, 'MaxEnt', 1, 2, True, 100)
+    runModel(1, 'totalGroup', 2, 1, 'MLP', 1, 2, True, 100)
+
+
