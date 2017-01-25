@@ -165,6 +165,7 @@ def label(mode):
                     except:
                         print content
                 else:
+                    print threshold
                     threshold += binSize
                     labelScore -= 1
         elif mode == 2:
@@ -271,5 +272,5 @@ def scoreFileBlender():
 
 
 if __name__ == "__main__":
-    label(2)
+    label(1)
     #scoreFileBlender()
