@@ -2,7 +2,8 @@ __author__ = 'renhao.cui'
 import re
 import numpy as np
 import json
-
+import tokenizer
+import sklearn.metrics
 
 def POSRatio(inputList):
     out = []
@@ -29,6 +30,7 @@ def hourMapper(hour):
         output = 3
     return output
 
+
 def mapMention(inputFile):
     mentionFile = open(inputFile, 'r')
     outputMapper = {}
@@ -41,6 +43,7 @@ def mapMention(inputFile):
         outputMapper[mention['screen_name']] = (verify, mention['followers_count'])
     mentionFile.close()
     return outputMapper
+
 
 def vectorizeWord(content, corpus):
     vector = {}
@@ -82,6 +85,69 @@ def classifySentiment(words, happy_log_probs, sad_log_probs):
     prob_sad = 1 - prob_happy
 
     return prob_happy, prob_sad
+
+def content2vec(model, content):
+    words = tokenizer.simpleTokenize(content)
+    tempList = []
+    for word in words:
+        if word in model.vocab:
+            tempList.append(model[word])
+    if len(tempList) < 1:
+        return None
+    vecSize = len(tempList[0])
+    sumList = []
+    for i in range(vecSize):
+        sumList.append(0.0)
+    for vec in tempList:
+        for i in range(vecSize):
+            sumList[i] += vec[i]
+    output = []
+    dataSize = len(tempList)
+    for value in sumList:
+        output.append(value/dataSize)
+    return np.array(output)
+
+
+def scoreToBinary(inputList, splitNum):
+    outputList = []
+    for item in inputList:
+        if item > splitNum:
+            outputList.append(1)
+        else:
+            outputList.append(0)
+
+    return outputList
+
+
+def evaluate(predictions, test_labels, mode, splitNum=5):
+    if len(predictions) != len(test_labels):
+        print 'prediction error!'
+        return 404
+    if mode == 1:
+        test_labels = scoreToBinary(test_labels, splitNum)
+        predictions = scoreToBinary(predictions, splitNum)
+        precision = sklearn.metrics.precision_score(test_labels, predictions)
+        recall = sklearn.metrics.recall_score(test_labels, predictions)
+        F1 = sklearn.metrics.f1_score(test_labels, predictions)
+        auc = sklearn.metrics.roc_auc_score(test_labels, predictions)
+        return precision, recall, F1, auc
+    elif mode == 2:
+        precision = sklearn.metrics.precision_score(test_labels, predictions)
+        recall = sklearn.metrics.recall_score(test_labels, predictions)
+        F1 = sklearn.metrics.f1_score(test_labels, predictions)
+        auc = sklearn.metrics.roc_auc_score(test_labels, predictions)
+        return precision, recall, F1, auc
+    else:
+        total = 0.0
+        correct1 = 0.0
+        correct2 = 0.0
+        for index, label in enumerate(predictions):
+            total += 1.0
+            if round(label) == test_labels[index]:
+                correct1 += 1.0
+            if label - 1 <= test_labels[index] <= label + 1:
+                correct2 += 1.0
+        return correct1 / total, correct2 / total
 
 
 def shrinkPuncuation(input):

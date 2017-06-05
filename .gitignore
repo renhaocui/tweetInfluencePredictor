@@ -54,3 +54,6 @@ LDA/*
 TweeboParser/*
 results/*
 outputs/*
+Embedding/*
+models/*
+TMT/*

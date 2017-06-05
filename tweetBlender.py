@@ -10,7 +10,7 @@ def blend(fileSize, offset):
         brandList.append(line.strip())
     listFile.close()
 
-    combinedOutFile = open('dataset/ConsolidatedTweets/total.json', 'w')
+    combinedOutFile = open('dataset/experiment/total.json', 'w')
     totalIndex = 0
     for brand in brandList:
         #outputFile = open('dataset/ConsolidatedTweets/' + brand + '.json', 'w')
@@ -18,14 +18,14 @@ def blend(fileSize, offset):
         tweetData = {}
         finalTweetData = {}
         for index in range(fileSize):
-            inputFile = open("C:/Users/renhao.cui/Desktop/ad data/" + brand + '/' + str(index + offset) + '.json', 'r')
+            inputFile = open("../ad_data/" + brand + '/' + str(index + offset) + '.json', 'r')
             for line in inputFile:
                 data = json.loads(line.strip())
                 tweetID = data['id']
                 if tweetID not in tweetIDSet:
                     totalIndex += 1
                     tweetIDSet.add(tweetID)
-                    temp = {'id': tweetID, 'text': data['text'], 'create_at': data['created_at']}
+                    temp = {'id': tweetID, 'text': data['text'], 'create_at': data['created_at'], 'user_create_at': data['user']['created_at']}
                     hashtags = []
                     if 'hashtags' in data['entities']:
                         for tag in data['entities']['hashtags']:
@@ -67,14 +67,15 @@ def blend(fileSize, offset):
             inputFile.close()
 
         print brand + ': ' + str(totalIndex)
-        '''
+
         for (tweetID, tweet) in tweetData.items():
-            outputFile.write(json.dumps(tweet) + '\n')
+            #outputFile.write(json.dumps(tweet) + '\n')
             combinedOutFile.write(json.dumps(tweet) + '\n')
-        outputFile.close()
-        '''
+        #outputFile.close()
+
     combinedOutFile.close()
 
 
+
 if __name__ == "__main__":
-    blend(716, 0)
+    blend(951, 0)

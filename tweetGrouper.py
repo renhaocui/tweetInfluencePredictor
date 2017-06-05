@@ -365,6 +365,7 @@ def totalGrouper():
     shutil.copy2('dataset/experiment/parser/clean.headCount', 'dataset/experiment/groups/totalGroup/data_0.headCount')
     shutil.copy2('dataset/experiment/parser/clean.length', 'dataset/experiment/groups/totalGroup/data_0.length')
     shutil.copy2('dataset/experiment/parser/clean.posCount', 'dataset/experiment/groups/totalGroup/data_0.posCount')
+    shutil.copy2('dataset/experiment/parser/clean.pos', 'dataset/experiment/groups/totalGroup/data_0.pos')
     print 'Total Group size: ' + str(fileLineCount(['dataset/experiment/groups/totalGroup/data_0.labeled']))
 
 

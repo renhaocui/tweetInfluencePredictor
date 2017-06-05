@@ -24,6 +24,23 @@ def oauth_login():
     twitter_api = twitter.Twitter(auth=auth)
     return twitter_api
 
+
+def extractTotalMentions():
+    mentionList = set()
+    inputFile = open('dataset/experiment/total.json', 'r')
+    for line in inputFile:
+        data = json.loads(line.strip())
+        for ment in data['mentions']:
+            if ment not in mentionList:
+                mentionList.add(ment)
+    inputFile.close()
+
+    mentionFile = open('dataset/experiment/mention.list', 'w')
+    for ment in mentionList:
+        mentionFile.write(ment + '\n')
+    mentionFile.close()
+
+
 def collector():
     userFile = open('dataset/experiment/mention.list', 'r')
     outputFile = open('dataset/experiment/mention.json', 'w')
@@ -70,9 +87,13 @@ def collector():
             tempList.append(userId)
 
     outputFile.close()
+    count = 0
     for name in nameList:
         if name not in outputList:
-            print name
+            count += 1
+            #print name
+    print count
 
 if __name__ == '__main__':
+    #extractTotalMentions()
     collector()

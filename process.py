@@ -8,17 +8,17 @@ import runModel
 import usernameExtractor
 
 # blender the brand dataset
-tweetBlender.blend(919, 0)
+#tweetBlender.blend(919, 0)
 # remove outliers and assign labels
-dataLabeler.label(2)
+#dataLabeler.label(1)
 # extract content and parse
-contenter.contenterExtractor()
+#contenter.contenterExtractor()
 # need to run TweeboParser here
 
 parserExtractor.extractor()
 # grouping the data
 tweetGrouper.totalGrouper()
 #collect meta data
-usernameExtractor.collector()
+#usernameExtractor.collector()
 # run the experiment
-runModel.runModel(1, 'totalGroup', 2, 1, 'SVM', 1, 2, True, 100)
+#runModel.runModel(1, 'totalGroup', 2, 1, 'SVM', 1, 2, True, 100)
