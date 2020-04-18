@@ -22,7 +22,7 @@ c_s = 'GDc4vZtorwOiPgDNiaGrWDTWfqKNW2ZzMOTUkpJuF7gLdBCLZI'
 a_t = '141612471-AnWgHssHt5rtOhlC8Cmy6GwEge9Z81v8MHQw6nXr'
 a_t_s = 'gNE1nOhhc5CJoinMR6eUuyYBLR8YT3wK0tRb4yTUAY8Od'
 
-requestLimit = 180
+requestLimit = 900
 
 
 def oauth_login():
@@ -42,10 +42,9 @@ def oauth_login():
 
 
 for index in range(280000):
-    index = index + 604
+    index = index + 2179
     print 'round: ' + str(index)
     logFile.write('round: ' + str(index) + '\n')
-    logFile.flush()
     brandIDSet = {}
     for brand in brandList:
         brandIDSet[brand] = Set([])
@@ -55,7 +54,7 @@ for index in range(280000):
     requestNum = 0
     for brand in brandList:
         print 'extracting tweets for: ' + brand
-        logFile.write('extracting tweets for: ' + brand + '\n\n')
+        logFile.write('extracting tweets for: ' + brand + '\n')
         recordFile = open("adData//" + brand + '//' + str(index) + '.json', 'w')
         for i in range(10):
             requestNum += 1
@@ -71,7 +70,6 @@ for index in range(280000):
                 print 'API ERROR: ' + str(e)
                 logFile.write('API ERROR: ' + str(e) + '\n')
                 logFile.write('')
-                logFile.flush()
                 continue
             for tweet in statuses:
                 if tweet['id'] not in brandIDSet[brand]:
@@ -79,7 +77,6 @@ for index in range(280000):
                     recordFile.write(json.dumps(tweet))
                     recordFile.write('\n')
         recordFile.close()
-        logFile.flush()
     endTime = time.time()
 
     print 'Paused for next extraction in 12 hours...'
