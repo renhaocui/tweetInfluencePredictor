@@ -2,7 +2,6 @@ import time
 import twitter
 import json
 
-__author__ = 'rencui'
 
 def oauth_login():
     c_k = 'R2FZHZcAcHFatakYhKL2cQcVo'
@@ -41,28 +40,27 @@ def extractTotalMentions():
     mentionFile.close()
 
 
-def collector():
-    userFile = open('dataset/experiment/mention.list', 'r')
-    outputFile = open('dataset/experiment/mention.json', 'w')
+def collector(mentionListFilename, outputFilename):
+    userFile = open(mentionListFilename, 'r')
+    outputFile = open(outputFilename, 'w')
 
-
-    requestLimit = 180
+    requestLimit = 300
     twitter_api = oauth_login()
-
     nameList = []
     for line in userFile:
         name = line.strip()
         if name not in nameList:
             nameList.append(name)
     userFile.close()
-    print len(nameList)
+    print(len(nameList))
+
     outputList = []
     tempList = []
     requestCount = 0
-    print 'Collecting...'
+    print('Collecting...')
     for index, userId in enumerate(nameList):
         if requestCount > requestLimit:
-            print 'waiting for 15m...'
+            print('waiting for 15m...')
             time.sleep(900)
             requestCount = 0
         if index % 99 == 0 and index != 0:
@@ -92,8 +90,9 @@ def collector():
         if name not in outputList:
             count += 1
             #print name
-    print count
+    print(count)
+
 
 if __name__ == '__main__':
     #extractTotalMentions()
-    collector()
+    collector('dataset/commTweets/mention.list', 'dataset/commTweets/mention.json')

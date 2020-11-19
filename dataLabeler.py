@@ -1,4 +1,3 @@
-__author__ = 'renhao.cui'
 from scipy import stats
 import json
 import operator
@@ -6,20 +5,25 @@ import subprocess
 import statistics as stat
 import tweetTextCleaner
 from sklearn.feature_extraction.text import *
-import sys
 from datetime import datetime
 from sklearn import cluster
 import numpy
-import word2vecReader
-from tokenizer import simpleTokenize
-reload(sys)
-sys.setdefaultencoding('utf8')
+#import word2vecReader
+#from tokenizer import simpleTokenize
 
 filterTerms = ['iphone 7', 'pikachu', 'pokemon go', 'macbook pro', 'trump', 'note 7']
 
+def processDate(inputDate):
+    dateTemp = inputDate.split()
+    day = dateTemp[0]
+    hour = dateTemp[3].split(':')[0]
+    date = dateTemp[1] + ' ' + dateTemp[2] + ' ' + dateTemp[5]
+    return day, hour, datetime.strptime(date, '%b %d %Y')
+
+
 def label(mode):
     tweetIDSet = set()
-    print 'extracting outliers...'
+    print('extracting outliers...')
     brandList = []
     listFile = open('brand.list', 'r')
     for line in listFile:
@@ -53,13 +57,13 @@ def label(mode):
     inputFile.close()
 
     for brand in brandList:
-        print brand
+        print(brand)
         outLierFile = open('dataset/exceptions/'+brand+'.outliers', 'w')
         brandData = []
         brandScoreList = []
 
         for data in totalBrandData[brand]:
-            tweetID = long(data['id'])
+            tweetID = data['id']
             #if tweetID not in exceptionList:
             if tweetID not in tweetIDSet:
                 tweetIDSet.add(tweetID)
@@ -105,7 +109,7 @@ def label(mode):
 
         zScores = stats.zscore(brandScoreList)
         if len(zScores) != len(brandData):
-            print 'Z-score Error!'
+            print('Z-score Error!')
         outputData = []
         for index, item in enumerate(brandData):
             item['zScore'] = float(zScores[index])
@@ -133,14 +137,14 @@ def label(mode):
             normalScores.append((score - minScore) / (maxScore - minScore))
         stdevScore = stat.stdev(normalScores)
         meanScore = stat.mean(normalScores)
-        print 'mean: ' + str(meanScore)
-        print 'stdev: ' + str(stdevScore)
-        print 'mdean: ' + str(stat.median(normalScores))
+        print('mean: ' + str(meanScore))
+        print('stdev: ' + str(stdevScore))
+        print('mdean: ' + str(stat.median(normalScores)))
         if stdevScore >= meanScore:
-            print 'CAUTION'
+            print('CAUTION')
         else:
-            print 'PASS'
-        print ''
+            print('PASS')
+        print()
 
         if mode == 1:
             # label post with 1-10 score
@@ -169,13 +173,13 @@ def label(mode):
                     else:
                         mentionsOutput = mentionsOutput[:-1]
                     try:
-                        totalDisplayFile.write(brand+' | '+str(labelScore)+' | '+day+' | '+hour+' | '+unicode(item['content'], errors='ignore')+' | '+str(item['id'])+' | '+hashtagOutput+' | '+mentionsOutput+'\n')
+                        totalDisplayFile.write(brand+' | '+str(labelScore)+' | '+day+' | '+hour+' | '+item['content']+' | '+str(item['id'])+' | '+hashtagOutput+' | '+mentionsOutput+'\n')
                         item['label'] = labelScore
                         totalOutputFile.write(json.dumps(item)+'\n')
                     except:
-                        print content
+                        print(content)
                 else:
-                    print threshold
+                    print(threshold)
                     threshold += binSize
                     labelScore -= 1
         elif mode == 2:
@@ -209,11 +213,10 @@ def label(mode):
                 totalOutputFile.write(json.dumps(item) + '\n')
                 try:
                     totalDisplayFile.write(
-                        brand + ' | ' + str(labelScore) + ' | ' + day + ' | ' + hour + ' | ' + unicode(
-                            item['content'], errors='ignore') + ' | ' + str(
+                        brand + ' | ' + str(labelScore) + ' | ' + day + ' | ' + hour + ' | ' + item['content'] + ' | ' + str(
                             item['id']) + ' | ' + hashtagOutput + ' | ' + mentionsOutput + '\n')
                 except:
-                    print content
+                    print(content)
 
         else:
             # label with normalized scores
@@ -241,11 +244,11 @@ def label(mode):
                 else:
                     mentionsOutput = mentionsOutput[:-1]
                 try:
-                    totalDisplayFile.write(brand+' | '+str(score)+' | '+day+' | '+hour+' | '+unicode(item['content'], errors='ignore')+' | '+str(item['id'])+' | '+hashtagOutput+' | '+mentionsOutput+'\n')
+                    totalDisplayFile.write(brand+' | '+str(score)+' | '+day+' | '+hour+' | '+item['content']+' | '+str(item['id'])+' | '+hashtagOutput+' | '+mentionsOutput+'\n')
                     item['label'] = score
                     totalOutputFile.write(json.dumps(item)+'\n')
                 except:
-                    print content
+                    print(content)
 
             scoreDistFile.close()
 
@@ -262,8 +265,205 @@ def label(mode):
     totalOutputFile.close()
 
 
+def label_new(mode, inputFile):
+    totalDisplayFile = open('dataset/commTweets/clean.display', 'w')
+    totalOutputFile = open('dataset/commTweets/clean.json', 'w')
+
+    mentionList = set()
+    hashtagList = set()
+    totalBrandData = {}
+
+    inputFile = open(inputFile, 'r')
+    for line in inputFile:
+        temp = json.loads(line.strip())
+        brand = temp['brand']
+        if brand not in totalBrandData:
+            totalBrandData[brand] = [temp]
+        else:
+            totalBrandData[brand].append(temp)
+    inputFile.close()
+
+    for brand in totalBrandData:
+        print(brand)
+        outLierFile = open('dataset/commTweets/outliers/'+brand+'.outliers', 'w')
+        brandData = []
+        brandScoreList = []
+
+        for data in totalBrandData[brand]:
+            tweetID = data['id']
+            text = data['text']
+            content = tweetTextCleaner.tweetCleaner(text)
+            retweet = float(data['retweet_count'])
+            favorite = float(data['favorite_count'])
+            followers = float(data['user_followers_count'])
+            author_statuses_count = float(data['user_statuses_count'])
+            author_favorite_count = float(data['user_favorite_count'])
+            author_listed_count = float(data['user_listed_count'])
+
+            day, hour, postData_object = processDate(data['create_at'])
+            _, _, authorData_object = processDate(data['user_create_at'])
+            authorInterval = float((postData_object - authorData_object).days)
+
+            if followers > 0:
+                labelScore = (2.0 * retweet + favorite) * 10000 / followers
+                brandData.append({'brand': brand, 'content': content, 'score': labelScore, 'id': tweetID, 'day': day, 'hour': hour, 'mentions': data['mentions'], 'hashtags': data['hashtags'],
+                                  'author_statuses_count': author_statuses_count, 'author_favorite_count': author_favorite_count, 'author_listed_count': author_listed_count,
+                                  'authorInterval': authorInterval, 'author_followers_count': followers})
+                brandScoreList.append(labelScore)
+
+        zScores = stats.zscore(brandScoreList)
+        if len(zScores) != len(brandData):
+            print('Z-score Error!')
+        outputData = []
+        for index, item in enumerate(brandData):
+            item['zScore'] = float(zScores[index])
+            outputData.append(item)
+
+        cleanData = []
+        cleanScore = []
+        sorted_output = sorted(outputData, key=lambda x: x['score'])
+        for item in reversed(sorted_output):
+            z = item['zScore']
+            if z > 2:
+                outLierFile.write(str(item['score'])+' | '+str(z)+' : '+' | '+str(item['id'])+' | '+item['content']+'\n')
+            else:
+                cleanData.append(item)
+                cleanScore.append(item['score'])
+                #totalCleanScore.append(item['score'])
+                #totalCleanData.append(item)
+
+        outLierFile.close()
+
+        maxScore = max(cleanScore)
+        minScore = min(cleanScore)
+        normalScores = []
+        for score in cleanScore:
+            normalScores.append((score - minScore) / (maxScore - minScore))
+        stdevScore = stat.stdev(normalScores)
+        meanScore = stat.mean(normalScores)
+        #print('mean: ' + str(meanScore))
+        #print('stdev: ' + str(stdevScore))
+        #print('mdean: ' + str(stat.median(normalScores)))
+        if stdevScore >= meanScore:
+            print('CAUTION')
+        else:
+            print('PASS')
+        print()
+
+        if mode == 1:
+            # label post with 1-10 score
+            cleanSize = len(cleanScore)
+            binSize = cleanSize/10
+            threshold = binSize
+            labelScore = 10
+            for count, item in enumerate(cleanData):
+                if count <= threshold or labelScore == 1:
+                    hashtagOutput = ''
+                    mentionsOutput = ''
+                    for ht in item['hashtags']:
+                        if ht not in hashtagList:
+                            hashtagList.add(ht)
+                        hashtagOutput += ht + ';'
+                    hashtagOutput = 'NONE' if hashtagOutput == '' else hashtagOutput[:-1]
+                    for ment in item['mentions']:
+                        if ment not in mentionList:
+                            mentionList.add(ment)
+                        mentionsOutput += ment + ';'
+                    mentionsOutput = 'NONE' if mentionsOutput == '' else mentionsOutput[:-1]
+                    try:
+                        totalDisplayFile.write(brand+' | '+str(labelScore)+' | '+day+' | '+hour+' | '+item['content']+' | '+str(item['id'])+' | '+hashtagOutput+' | '+mentionsOutput+'\n')
+                        item['label'] = labelScore
+                        totalOutputFile.write(json.dumps(item)+'\n')
+                    except:
+                        print(content)
+                else:
+                    #print(threshold)
+                    threshold += binSize
+                    labelScore -= 1
+        elif mode == 2:
+            # binary label (0, 1)
+            cleanSize = len(cleanScore)
+            for count, item in enumerate(cleanData):
+                hashtagOutput = ''
+                mentionsOutput = ''
+                for ht in item['hashtags']:
+                    if ht not in hashtagList:
+                        hashtagList.add(ht)
+                    hashtagOutput += ht + ';'
+                if hashtagOutput == '':
+                    hashtagOutput = 'NONE'
+                else:
+                    hashtagOutput = hashtagOutput[:-1]
+                for ment in item['mentions']:
+                    if ment not in mentionList:
+                        mentionList.add(ment)
+                    mentionsOutput += ment + ';'
+                if mentionsOutput == '':
+                    mentionsOutput = 'NONE'
+                else:
+                    mentionsOutput = mentionsOutput[:-1]
+
+                if count <= 0.5 * cleanSize:
+                    labelScore = 1
+                else:
+                    labelScore = 0
+                item['label'] = labelScore
+                totalOutputFile.write(json.dumps(item) + '\n')
+                try:
+                    totalDisplayFile.write(
+                        brand + ' | ' + str(labelScore) + ' | ' + day + ' | ' + hour + ' | ' + item['content'] + ' | ' + str(
+                            item['id']) + ' | ' + hashtagOutput + ' | ' + mentionsOutput + '\n')
+                except:
+                    print(content)
+
+        else:
+            # label with normalized scores
+            scoreDistFile = open('dataset/stats/scoreDist.'+brand, 'w')
+            for index, normalScore in enumerate(normalScores):
+                item = cleanData[index]
+                score = normalScore * 10
+                scoreDistFile.write(str(score)+'\n')
+                hashtagOutput = ''
+                mentionsOutput = ''
+                for ht in item['hashtags']:
+                    if ht not in hashtagList:
+                        hashtagList.add(ht)
+                    hashtagOutput += ht + ';'
+                if hashtagOutput == '':
+                    hashtagOutput = 'NONE'
+                else:
+                    hashtagOutput = hashtagOutput[:-1]
+                for ment in item['mentions']:
+                    if ment not in mentionList:
+                        mentionList.add(ment)
+                    mentionsOutput += ment + ';'
+                if mentionsOutput == '':
+                    mentionsOutput = 'NONE'
+                else:
+                    mentionsOutput = mentionsOutput[:-1]
+                try:
+                    totalDisplayFile.write(brand+' | '+str(score)+' | '+day+' | '+hour+' | '+item['content']+' | '+str(item['id'])+' | '+hashtagOutput+' | '+mentionsOutput+'\n')
+                    item['label'] = score
+                    totalOutputFile.write(json.dumps(item)+'\n')
+                except:
+                    print(content)
+
+            scoreDistFile.close()
+
+    hashtagFile = open('dataset/commTweets/hashtag.list', 'w')
+    mentionFile = open('dataset/commTweets/mention.list', 'w')
+    for ht in hashtagList:
+        hashtagFile.write(ht+'\n')
+    for ment in mentionList:
+        mentionFile.write(ment+'\n')
+
+    hashtagFile.close()
+    mentionFile.close()
+    totalOutputFile.close()
+
+
 def groupSampler(groupMode, groupSize, seed):
-    print groupMode
+    print(groupMode)
     inputFile = open('dataset/experiment/labeled_data/' + groupMode + '_' + str(groupSize) + '.labeled', 'r')
     groupData = {}
     for num in range(int(groupSize)):
@@ -280,7 +480,7 @@ def groupSampler(groupMode, groupSize, seed):
     outputFile = open('dataset/experiment/sample/' + groupMode + '_' + str(groupSize) + '.sample', 'w')
     for groupIndex in range(int(groupSize)):
         outputFile.write('Group: ' + str(groupIndex)+'\n')
-        print len(groupData[groupIndex])
+        print(len(groupData[groupIndex]))
         for count, tweetID in enumerate(groupData[groupIndex]):
             if count % seed == 0:
                 outputFile.write(groupData[groupIndex][tweetID]+'\t'+str(tweetID)+'\n')
@@ -348,7 +548,7 @@ def brandLabel(removeOutliers=True):
     inputFile.close()
 
     for brand, tweetIDs in brandGroupData.items():
-        print 'Brand: ' + brand
+        print('Brand: ' + brand)
         groupScoreList = []
         IDList = []
         for tweetID in tweetIDs:
@@ -361,7 +561,7 @@ def brandLabel(removeOutliers=True):
         if removeOutliers:
             zScores = stats.zscore(groupScoreList)
             if len(zScores) != len(groupScoreList):
-                print 'Z-score Error!'
+                print ('Z-score Error!')
         for index, item in enumerate(IDList):
             if removeOutliers:
                 zScore = float(zScores[index])
@@ -369,7 +569,7 @@ def brandLabel(removeOutliers=True):
                     cleanDataList.append({'id': item, 'success_score': groupScoreList[index]})
             else:
                 cleanDataList.append({'id': item, 'success_score': groupScoreList[index]})
-        print 'Group Size: ' + str(len(cleanDataList))
+        print('Group Size: ' + str(len(cleanDataList)))
         sorted_cleanDataList = sorted(cleanDataList, key=lambda x: x['success_score'], reverse=True)
 
         # label post with 1-10 score
@@ -393,6 +593,7 @@ def brandLabel(removeOutliers=True):
     statFile.close()
     totalOutputFile.close()
     contentOutputFile.close()
+
 
 def groupLabel(groupMode, groupSize, removeOutliers=True):
     groupFile = open('dataset/experiment/group_indicies/'+groupMode+'.'+str(groupSize), 'r')
@@ -456,7 +657,7 @@ def groupLabel(groupMode, groupSize, removeOutliers=True):
     inputFile.close()
 
     for groupIndex in range(int(groupSize)):
-        print groupMode+': ' + str(groupIndex)
+        print(groupMode+': ' + str(groupIndex))
         groupScoreList = []
         IDList = []
         for tweetID in groupData[str(groupIndex)]:
@@ -469,7 +670,7 @@ def groupLabel(groupMode, groupSize, removeOutliers=True):
         if removeOutliers:
             zScores = stats.zscore(groupScoreList)
             if len(zScores) != len(groupScoreList):
-                print 'Z-score Error!'
+                print('Z-score Error!')
         for index, item in enumerate(IDList):
             if removeOutliers:
                 zScore = float(zScores[index])
@@ -477,7 +678,7 @@ def groupLabel(groupMode, groupSize, removeOutliers=True):
                     cleanDataList.append({'id': item, 'success_score': groupScoreList[index]})
             else:
                 cleanDataList.append({'id': item, 'success_score': groupScoreList[index]})
-        print 'Group Size: ' + str(len(cleanDataList))
+        print('Group Size: ' + str(len(cleanDataList)))
         sorted_cleanDataList = sorted(cleanDataList, key=lambda x: x['success_score'], reverse=True)
 
         # label post with 1-10 score
@@ -570,7 +771,7 @@ def simpleLabel(groupVersion, removeOutliers=True):
     if removeOutliers:
         zScores = stats.zscore(groupScoreList)
         if len(zScores) != len(groupScoreList):
-            print 'Z-score Error!'
+            print('Z-score Error!')
     for index, item in enumerate(IDList):
         if removeOutliers:
             zScore = float(zScores[index])
@@ -578,7 +779,7 @@ def simpleLabel(groupVersion, removeOutliers=True):
                 cleanDataList.append({'id': item, 'success_score': groupScoreList[index]})
         else:
             cleanDataList.append({'id': item, 'success_score': groupScoreList[index]})
-    print 'Group Size: ' + str(len(cleanDataList))
+    print('Group Size: ' + str(len(cleanDataList)))
     sorted_cleanDataList = sorted(cleanDataList, key=lambda x: x['success_score'], reverse=True)
 
     # label post with 1-10 score
@@ -602,6 +803,7 @@ def simpleLabel(groupVersion, removeOutliers=True):
     statFile.close()
     totalOutputFile.close()
     contentOutputFile.close()
+
 
 def keywordLabel(keyword):
     outputFile = open('dataset/experiment/'+keyword+'.labeled', 'w')
@@ -649,7 +851,7 @@ def keywordLabel(keyword):
                 tweetData[tweetID] = temp
                 dataList.append({'id': tweetID, 'success_score': successScore})
     inputFile.close()
-    print len(dataList)
+    print(len(dataList))
     sorted_dataList = sorted(dataList, key=lambda x: x['success_score'], reverse=True)
 
     # label post with 1-10 score
@@ -719,7 +921,7 @@ def dataGrouper(groupMode, groupSize, hierarchical=False):
     inputFile.close()
 
     if groupMode == 'brandGroup':
-        print 'running brand grouping...'
+        print('running brand grouping...')
         brandMapper = {}
         groupFile = open('brandGroup.list', 'r')
         for index, line in enumerate(groupFile):
@@ -732,7 +934,7 @@ def dataGrouper(groupMode, groupSize, hierarchical=False):
             if tweet['brand'] in brandMapper:
                 outputData[brandMapper[tweet['brand']]].append(tweet['id'])
     elif groupMode == 'topicGroup':
-        print 'running LDA grouping...'
+        print('running LDA grouping...')
         csvFile = open('TMT/LDAinput.csv', 'w')
         for tweet in tweetData:
             csvFile.write(tweetTextCleaner.tweetCleaner(tweet['content']).replace('"', '\'') + '\n')
@@ -752,16 +954,16 @@ def dataGrouper(groupMode, groupSize, hierarchical=False):
         for index, value in topicOut.items():
             outputData[str(value[0])].append(tweetData[index]['id'])
     elif groupMode == 'simGroup_binary':
-        print 'running kmeans clustering with binary representation...'
+        print('running kmeans clustering with binary representation...')
         tweets = []
         for tweet in tweetData:
             tweets.append(tweetTextCleaner.tweetCleaner(tweet['content']))
 
         vectorizer = CountVectorizer(analyzer='word', ngram_range=(1, 1), min_df=1, stop_words='english', binary='True')
         matrix = vectorizer.fit_transform(tweets)
-        print matrix.shape
+        print(matrix.shape)
         if hierarchical:
-            print ''
+            print()
             #z = cluster.hierarchy.linkage(matrix, 'ward')
         else:
             kmeans = cluster.KMeans(n_clusters=int(groupSize), init='k-means++')
@@ -770,7 +972,7 @@ def dataGrouper(groupMode, groupSize, hierarchical=False):
                 outputData[str(label)].append(tweetData[index]['id'])
 
     elif groupMode == 'simGroup_emb':
-        print 'running kmeans clustering with CMU encoding...'
+        print('running kmeans clustering with CMU encoding...')
         '''
         contentFile = open('embedding/CMU_hashtag/tweet.content', 'w')
         for tweet in tweetData:
@@ -781,9 +983,9 @@ def dataGrouper(groupMode, groupSize, hierarchical=False):
         subprocess.check_output('python embedding/CMU_hashtag/encode_char.py embedding/CMU_hashtag/tweet.input embedding/CMU_hashtag/best_model embedding/CMU_hashtag/', shell=True)
         '''
         embData = numpy.load('embedding/CMU_hashtag/embeddings.npy')
-        print len(embData)
+        print(len(embData))
         if hierarchical:
-            print ''
+            print()
         else:
             kmeans = cluster.KMeans(n_clusters=int(groupSize), init='k-means++')
             kmeans.fit(embData)
@@ -795,6 +997,7 @@ def dataGrouper(groupMode, groupSize, hierarchical=False):
     outputFile.close()
 
 
+'''
 def content2vec(model, content):
     words = simpleTokenize(content)
     tempList = []
@@ -815,8 +1018,10 @@ def content2vec(model, content):
     for value in sumList:
         output.append(value/dataSize)
     return numpy.array(output)
+'''
 
 
+'''
 def dataGrouperKey(groupMode, groupSize):
     keyData = {}
     keyFile = open('dataset/experiment/parser/total.key', 'r')
@@ -845,7 +1050,7 @@ def dataGrouperKey(groupMode, groupSize):
     inputFile.close()
 
     if groupMode == 'topicGroup':
-        print 'running LDA grouping...'
+        print('running LDA grouping...')
         csvFile = open('TMT/LDAinput.csv', 'w')
         for tweet in tweetData:
             csvFile.write(tweet['key'].replace('"', '\'') + '\n')
@@ -865,14 +1070,14 @@ def dataGrouperKey(groupMode, groupSize):
         for index, value in topicOut.items():
             outputData[str(value[0])].append(tweetData[index]['id'])
     elif groupMode == 'simGroup_binary':
-        print 'running kmeans clustering with binary representation...'
+        print('running kmeans clustering with binary representation...')
         tweets = []
         for tweet in tweetData:
             tweets.append(tweet['key'])
 
         vectorizer = CountVectorizer(analyzer='word', ngram_range=(1, 1), min_df=1, stop_words='english', binary='True')
         matrix = vectorizer.fit_transform(tweets)
-        print matrix.shape
+        print(matrix.shape)
         kmeans = cluster.KMeans(n_clusters=int(groupSize), init='k-means++')
         kmeans.fit(matrix)
         for index, label in enumerate(kmeans.labels_):
@@ -885,7 +1090,7 @@ def dataGrouperKey(groupMode, groupSize):
             tweetVec = content2vec(embModel, tweet['key'])
             contents.append(tweetVec)
         matrix = numpy.array(contents)
-        print matrix.shape
+        print(matrix.shape)
         kmeans = cluster.KMeans(n_clusters=int(groupSize), init='k-means++')
         kmeans.fit(matrix)
         for index, label in enumerate(kmeans.labels_):
@@ -895,7 +1100,7 @@ def dataGrouperKey(groupMode, groupSize):
     outputFile = open('dataset/experiment/group_indicies/' + groupMode + '.' + str(groupSize), 'w')
     outputFile.write(json.dumps(outputData))
     outputFile.close()
-
+'''
 
 def dataAligner(groupMode, groupSize):
     tweetData = {}
@@ -912,6 +1117,7 @@ def dataAligner(groupMode, groupSize):
 
 
 if __name__ == "__main__":
+    label_new(1, 'dataset/commTweets.json')
     #label2(1)
     #scoreFileBlender()
 
@@ -921,7 +1127,7 @@ if __name__ == "__main__":
     #groupLabel('topicGroup', 2.4, True)
     #simpleLabel(1.1, True)
 
-    groupSampler('simGroup_emb', 5.4, 300)
+    #groupSampler('simGroup_emb', 5.4, 300)
     #groupSampler('topicGroup', 2.2, 3000)
     #groupSampler('topicGroup', 2.1, 1000)
     #groupSampler('topicGroup', 2.2, 1000)

@@ -1,30 +1,30 @@
-__author__ = 'rencui'
 import json
 import tweetTextCleaner
 
-def contenterExtractor():
-    dataFile = open('dataset/experiment/clean.labeled', 'r')
-    outputContentFile = open('dataset/experiment/content/clean.content', 'w')
+def contenterExtractor(inputFilename, outputFilename):
+    dataFile = open(inputFilename, 'r')
+    outputContentFile = open(outputFilename, 'w')
 
     for line in dataFile:
         data = json.loads(line.strip())
-        outputContentFile.write(data['content'].encode('utf-8')+'\n')
+        outputContentFile.write(data['content']+'\n')
 
     dataFile.close()
     outputContentFile.close()
 
 
 def generateTotalContent():
-    inputFile = open('dataset/experiment/total.json', 'r')
-    contentFile = open('dataset/experiment/content/total.content', 'w')
-    matchIDFile = open('dataset/experiment/content/total.id', 'w')
+    inputFile = open('dataset/commTweets.json', 'r')
+    contentFile = open('dataset/commTweets.content', 'w')
+    matchIDFile = open('dataset/commTweets.id', 'w')
     for line in inputFile:
         data = json.loads(line.strip())
         tweetID = data['id']
-        text = data['text'].encode('utf-8')
-        content = tweetTextCleaner.tweetCleaner(text)
-        contentFile.write(content+'\n')
-        matchIDFile.write(str(tweetID)+'\n')
+        text = data['text']
+        if len(text.split(' ')) > 7:
+            content = tweetTextCleaner.tweetCleaner(text, segment=True)
+            contentFile.write(content+'\n')
+            matchIDFile.write(str(tweetID)+'\n')
     inputFile.close()
     contentFile.close()
     matchIDFile.close()
@@ -60,8 +60,8 @@ def splitContent():
     outputContentTrainFile.close()
     outputContentTestFile.close()
 
-    print len(trainData)
-    print len(testData)
+    print(len(trainData))
+    print(len(testData))
 
     trainJsonFile = open('dataset/experiment/content/train.json', 'w')
     testJsonFile = open('dataset/experiment/content/test.json', 'w')
@@ -93,8 +93,10 @@ def generateContent_MIT(split=False):
     dataFile.close()
     outputContentFile.close()
 
+
 if __name__ == "__main__":
-    #contenterExtractor()
+    #contenterExtractor('dataset/commTweets/test.json', 'dataset/commTweets/test.content')
     #splitContent()
     #generateContent_MIT(True)
+    #generateTotalContent()
     generateTotalContent()

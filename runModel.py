@@ -1,32 +1,26 @@
-__author__ = 'rencui'
 import json
 from afinn import Afinn
 import numpy
 import utilities
 from textstat.textstat import textstat
 from sklearn.feature_extraction.text import *
-#from nltk.stem.porter import *
-from tokenizer import simpleTokenize
+from nltk import word_tokenize
 from scipy.sparse import hstack, csr_matrix, vstack
 from sklearn import svm
 from sklearn.neural_network import MLPClassifier
 from sklearn import linear_model
 from sklearn.naive_bayes import MultinomialNB
-import sys
-import operator
-from sklearn.model_selection import KFold
+from sklearn.model_selection import KFold, train_test_split
 import gensim
 import word2vecReader
-
-reload(sys)
-sys.setdefaultencoding('utf8')
+import operator
 
 dayMapper = {'Mon': 1, 'Tue': 2, 'Wed': 3, 'Thu': 4, 'Fri': 5, 'Sat': 6, 'Sun': 7}
 
 #stemmer = PorterStemmer()
 '''
 def stemContent(input):
-    words = simpleTokenize(input)
+    words = word_tokenize(input)
     out = ''
     for word in words:
         temp = stemmer.stem(word.encode('utf-8').decode('utf-8'))
@@ -181,13 +175,13 @@ def runModel(groupSize, groupTitle, vectorMode, featureMode, contentFeatures, em
     outputFile = 'results/ablation.result'
     resultFile = open(outputFile, 'a')
 
-    print groupTitle
+    print(groupTitle)
     resultFile.write(groupTitle + '\n')
     resultFile.write('Label Mode: ' + str(labelMode) + '\n')
     for group in range(groupSize):
-        print 'group: ' + str(group)
+        print('group: ' + str(group))
         resultFile.write('group: ' + str(group) + '\n')
-        print 'loading data...'
+        print('loading data...')
         errorIDList = []
         ids = []
         contents = []
@@ -228,12 +222,12 @@ def runModel(groupSize, groupTitle, vectorMode, featureMode, contentFeatures, em
         inputFile.close()
 
         if vectorMode == 1:
-            print 'Generating tfidf vectors...'
+            print('Generating tfidf vectors...')
             resultFile.write('tfidf \n')
             vectorizer = TfidfVectorizer(analyzer='word', ngram_range=(1, 5), min_df=2, stop_words='english')
             vectorMatrix = vectorizer.fit_transform(contents)
         elif vectorMode == 2:
-            print 'Generating binary ngram vectors...'
+            print('Generating binary ngram vectors...')
             resultFile.write('binary count \n')
             vectorizer = CountVectorizer(analyzer='word', ngram_range=(1, 5), min_df=2, stop_words='english',
                                          binary='True')
@@ -248,7 +242,7 @@ def runModel(groupSize, groupTitle, vectorMode, featureMode, contentFeatures, em
             model = gensim.models.doc2vec.Doc2Vec.load('models/doc2vec/general_tweet.d2v')
             tempFeatures = []
             for content in contents:
-                words = simpleTokenize(content)
+                words = word_tokenize(content)
                 tempFeatures.append(numpy.array(model.infer_vector(words)))
             embeddingFeature = numpy.array(tempFeatures)
             resultFile.write('MIT Twitter Embedding'+'\n')
@@ -269,7 +263,7 @@ def runModel(groupSize, groupTitle, vectorMode, featureMode, contentFeatures, em
             resultFile.write('no twitter embedding'+'\n')
 
         if len(embeddingFeature) != len(labels):
-            print 'Embedding vector size error...'
+            print('Embedding vector size error...')
 
         if contentFeatures:
             resultFile.write('with content features'+'\n')
@@ -296,7 +290,7 @@ def runModel(groupSize, groupTitle, vectorMode, featureMode, contentFeatures, em
 
             for index, content in enumerate(contents):
                 temp = []
-                words = simpleTokenize(content)
+                words = word_tokenize(content)
                 twLen = float(len(words))
                 sentiScore = afinn.score(content)
                 readScore = textstat.coleman_liau_index(content)
@@ -403,7 +397,7 @@ def runModel(groupSize, groupTitle, vectorMode, featureMode, contentFeatures, em
             F1SumList[trainMode] = 0.0
             aucSumList[trainMode] = 0.0
 
-        print 'running 5-fold CV...'
+        print('running 5-fold CV...')
         if labelMode == 1:
             title = 'totalGroup10'
         else:
@@ -418,11 +412,11 @@ def runModel(groupSize, groupTitle, vectorMode, featureMode, contentFeatures, em
             label_test = []
             label_train = []
             if trainIDs[0] in errorIDList:
-                print 'first trainID is invalid!'
+                print('first trainID is invalid!')
             else:
                 feature_train = featureData[trainIDs[0]]
             if testIDs[0] in errorIDList:
-                print 'first testID is invalid!'
+                print('first testID is invalid!')
             else:
                 feature_test = featureData[testIDs[0]]
             for j, tweetID in enumerate(trainIDs):
@@ -436,9 +430,9 @@ def runModel(groupSize, groupTitle, vectorMode, featureMode, contentFeatures, em
                         feature_test = vstack((feature_test, featureData[tweetID]), format='csr')
                     label_test.append(labelData[tweetID])
 
-            print 'Round: '+str(roundNum)
+            print('Round: '+str(roundNum))
             for trainMode in trainModeList:
-                print trainMode
+                print(trainMode)
                 if trainMode == 'MaxEnt':
                     model = linear_model.LogisticRegression()
                 elif trainMode == 'NaiveBayes':
@@ -448,9 +442,9 @@ def runModel(groupSize, groupTitle, vectorMode, featureMode, contentFeatures, em
                 else:
                     model = MLPClassifier(activation='logistic', learning_rate='constant')
 
-                print 'Training...'
+                print('Training...')
                 model.fit(feature_train, label_train)
-                print 'Inference...'
+                print('Inference...')
                 predictions = model.predict(feature_test)
 
                 if recordProb:
@@ -469,7 +463,7 @@ def runModel(groupSize, groupTitle, vectorMode, featureMode, contentFeatures, em
                         for index, prob in enumerate(probs):
                             inferTopic = labelList[index]
                             temp[inferTopic] = prob
-                        sorted_temp = sorted(temp.items(), key=operator.itemgetter(1), reverse=True)
+                        sorted_temp = sorted(list(temp.items()), key=operator.itemgetter(1), reverse=True)
                         outList = {}
                         for topic, prob in sorted_temp:
                             outList[topic] = prob
@@ -481,7 +475,7 @@ def runModel(groupSize, groupTitle, vectorMode, featureMode, contentFeatures, em
                         for index, prob in enumerate(probs):
                             inferTopic = labelList[index]
                             temp[inferTopic] = prob
-                        sorted_temp = sorted(temp.items(), key=operator.itemgetter(1), reverse=True)
+                        sorted_temp = sorted(list(temp.items()), key=operator.itemgetter(1), reverse=True)
                         outList = {}
                         for topic, prob in sorted_temp:
                             outList[topic] = prob
@@ -502,18 +496,18 @@ def runModel(groupSize, groupTitle, vectorMode, featureMode, contentFeatures, em
         outputRecallList = {}
         outputAUCList = {}
         for trainMode in trainModeList:
-            print trainMode
+            print(trainMode)
             outputF1List[trainMode] = F1SumList[trainMode] / 5
             outputPrecisionList[trainMode] = precisionSumList[trainMode] / 5
             outputRecallList[trainMode] = recallSumList[trainMode] / 5
             outputAUCList[trainMode] = aucSumList[trainMode] / 5
 
-            print outputPrecisionList[trainMode]
-            print outputRecallList[trainMode]
-            print outputF1List[trainMode]
-            print outputAUCList[trainMode]
+            print(outputPrecisionList[trainMode])
+            print(outputRecallList[trainMode])
+            print(outputF1List[trainMode])
+            print(outputAUCList[trainMode])
 
-        print ''
+        print('')
         for trainMode in trainModeList:
             resultFile.write(trainMode)
             resultFile.write(str(outputPrecisionList[trainMode]) + '\n')
@@ -532,11 +526,11 @@ def runModel2(groupSize, groupTitle, vectorMode, featureMode, contentFeatures, e
     outputFile = 'results/ablation/' + groupTitle
     resultFile = open(outputFile, 'a')
 
-    print groupTitle
+    print(groupTitle)
     resultFile.write(groupTitle + '_' + str(groupSize)+ '\n')
     resultFile.write('Label Mode: ' + str(labelMode) + '\n')
 
-    print 'loading data...'
+    print('loading data...')
     errorIDList = []
     ids = []
     contents = []
@@ -578,12 +572,12 @@ def runModel2(groupSize, groupTitle, vectorMode, featureMode, contentFeatures, e
     inputFile.close()
 
     if vectorMode == 1:
-        print 'Generating tfidf vectors...'
+        print('Generating tfidf vectors...')
         resultFile.write('tfidf \n')
         vectorizer = TfidfVectorizer(analyzer='word', ngram_range=(1, 5), min_df=2, stop_words='english')
         vectorMatrix = vectorizer.fit_transform(contents)
     elif vectorMode == 2:
-        print 'Generating binary ngram vectors...'
+        print('Generating binary ngram vectors...')
         resultFile.write('binary count \n')
         vectorizer = CountVectorizer(analyzer='word', ngram_range=(1, 5), min_df=2, stop_words='english',
                                      binary='True')
@@ -592,7 +586,7 @@ def runModel2(groupSize, groupTitle, vectorMode, featureMode, contentFeatures, e
         resultFile.write('no vector features \n')
 
     if embeddingMode == 1:
-        print 'generating CMU embeddings...'
+        print('generating CMU embeddings...')
         totalFile = open('dataset/experiment/total.json', 'r')
         totalIDList = []
         for line in totalFile:
@@ -612,7 +606,7 @@ def runModel2(groupSize, groupTitle, vectorMode, featureMode, contentFeatures, e
         model = gensim.models.doc2vec.Doc2Vec.load('models/doc2vec/general_tweet.d2v')
         tempFeatures = []
         for content in contents:
-            words = simpleTokenize(content)
+            words = word_tokenize(content)
             tempFeatures.append(numpy.array(model.infer_vector(words)))
         embeddingFeature = numpy.array(tempFeatures)
         resultFile.write('MIT Twitter Embedding'+'\n')
@@ -634,7 +628,7 @@ def runModel2(groupSize, groupTitle, vectorMode, featureMode, contentFeatures, e
 
     if embeddingMode in [1, 2, 3]:
         if len(embeddingFeature) != len(labels):
-            print 'Embedding vector size error...'
+            print('Embedding vector size error...')
 
     if contentFeatures:
         resultFile.write('with content features'+'\n')
@@ -662,7 +656,7 @@ def runModel2(groupSize, groupTitle, vectorMode, featureMode, contentFeatures, e
         for index, content in enumerate(contents):
             tweetID = ids[index]
             temp = []
-            words = simpleTokenize(content)
+            words = word_tokenize(content)
             twLen = float(len(words))
             sentiScore = afinn.score(content)
             readScore = textstat.coleman_liau_index(content)
@@ -769,7 +763,7 @@ def runModel2(groupSize, groupTitle, vectorMode, featureMode, contentFeatures, e
         F1SumList[trainMode] = 0.0
         aucSumList[trainMode] = 0.0
 
-    print 'running 5-fold CV...'
+    print('running 5-fold CV...')
     for roundNum in range(5):
         if removeOutliers:
             indexFile = open('dataset/experiment/fold_indicies/' + groupTitle + '_' + str(groupSize) + '.'+str(roundNum), 'r')
@@ -783,11 +777,11 @@ def runModel2(groupSize, groupTitle, vectorMode, featureMode, contentFeatures, e
         label_test = []
         label_train = []
         if trainIDs[0] in errorIDList:
-            print 'first trainID is invalid!'
+            print('first trainID is invalid!')
         else:
             feature_train = featureData[trainIDs[0]]
         if testIDs[0] in errorIDList:
-            print 'first testID is invalid!'
+            print('first testID is invalid!')
         else:
             feature_test = featureData[testIDs[0]]
         for j, tweetID in enumerate(trainIDs):
@@ -801,9 +795,9 @@ def runModel2(groupSize, groupTitle, vectorMode, featureMode, contentFeatures, e
                     feature_test = vstack((feature_test, featureData[tweetID]), format='csr')
                 label_test.append(labelData[tweetID])
 
-        print 'Round: '+str(roundNum)
+        print('Round: '+str(roundNum))
         for trainMode in trainModeList:
-            print trainMode
+            print(trainMode)
             if trainMode == 'MaxEnt':
                 model = linear_model.LogisticRegression()
             elif trainMode == 'NaiveBayes':
@@ -813,9 +807,9 @@ def runModel2(groupSize, groupTitle, vectorMode, featureMode, contentFeatures, e
             else:
                 model = MLPClassifier(activation='logistic', learning_rate='constant')
 
-            print 'Training...'
+            print('Training...')
             model.fit(feature_train, label_train)
-            print 'Inference...'
+            print('Inference...')
             predictions = model.predict(feature_test)
 
             precision, recall, F1, auc = utilities.evaluate(predictions, label_test, labelMode, splitNum=splitNum)
@@ -830,18 +824,18 @@ def runModel2(groupSize, groupTitle, vectorMode, featureMode, contentFeatures, e
     outputRecallList = {}
     outputAUCList = {}
     for trainMode in trainModeList:
-        print trainMode
+        print(trainMode)
         outputF1List[trainMode] = F1SumList[trainMode] / 5
         outputPrecisionList[trainMode] = precisionSumList[trainMode] / 5
         outputRecallList[trainMode] = recallSumList[trainMode] / 5
         outputAUCList[trainMode] = aucSumList[trainMode] / 5
 
-        print outputPrecisionList[trainMode]
-        print outputRecallList[trainMode]
-        print outputF1List[trainMode]
-        print outputAUCList[trainMode]
+        print(outputPrecisionList[trainMode])
+        print(outputRecallList[trainMode])
+        print(outputF1List[trainMode])
+        print(outputAUCList[trainMode])
 
-    print ''
+    print('')
     for trainMode in trainModeList:
         resultFile.write(trainMode+'\n')
         resultFile.write(str(outputPrecisionList[trainMode]) + '\n')
@@ -855,8 +849,8 @@ def runModel2(groupSize, groupTitle, vectorMode, featureMode, contentFeatures, e
 
 
 def runModelKeyword(keyword, vectorMode, featureMode, contentFeatures, embeddingMode, trainModeList, labelMode, splitNum, ablationIndex):
-    print keyword
-    print 'loading data...'
+    print(keyword)
+    print('loading data...')
     errorIDList = []
     ids = []
     contents = []
@@ -895,11 +889,11 @@ def runModelKeyword(keyword, vectorMode, featureMode, contentFeatures, embedding
     inputFile.close()
 
     if vectorMode == 1:
-        print 'Generating tfidf vectors...'
+        print('Generating tfidf vectors...')
         vectorizer = TfidfVectorizer(analyzer='word', ngram_range=(1, 5), min_df=2, stop_words='english')
         vectorMatrix = vectorizer.fit_transform(contents)
     elif vectorMode == 2:
-        print 'Generating binary ngram vectors...'
+        print('Generating binary ngram vectors...')
         vectorizer = CountVectorizer(analyzer='word', ngram_range=(1, 5), min_df=2, stop_words='english',
                                      binary='True')
         vectorMatrix = vectorizer.fit_transform(contents)
@@ -923,7 +917,7 @@ def runModelKeyword(keyword, vectorMode, featureMode, contentFeatures, embedding
         model = gensim.models.doc2vec.Doc2Vec.load('models/doc2vec/general_tweet.d2v')
         tempFeatures = []
         for content in contents:
-            words = simpleTokenize(content)
+            words = word_tokenize(content)
             tempFeatures.append(numpy.array(model.infer_vector(words)))
         embeddingFeature = numpy.array(tempFeatures)
     elif embeddingMode == 3:
@@ -941,7 +935,7 @@ def runModelKeyword(keyword, vectorMode, featureMode, contentFeatures, embedding
 
     if embeddingMode in [1, 2, 3]:
         if len(embeddingFeature) != len(labels):
-            print 'Embedding vector size error...'
+            print('Embedding vector size error...')
 
     if contentFeatures:
         mentionMapper = utilities.mapMention('dataset/experiment/mention.json')
@@ -968,7 +962,7 @@ def runModelKeyword(keyword, vectorMode, featureMode, contentFeatures, embedding
         for index, content in enumerate(contents):
             tweetID = ids[index]
             temp = []
-            words = simpleTokenize(content)
+            words = word_tokenize(content)
             twLen = float(len(words))
             sentiScore = afinn.score(content)
             readScore = textstat.coleman_liau_index(content)
@@ -1067,7 +1061,7 @@ def runModelKeyword(keyword, vectorMode, featureMode, contentFeatures, embedding
         F1SumList[trainMode] = 0.0
         aucSumList[trainMode] = 0.0
 
-    print 'running 5-fold CV...'
+    print('running 5-fold CV...')
     kf = KFold(n_splits=5, shuffle=True)
     for roundNum, (train_indices, test_indices) in enumerate(kf.split(ids)):
         trainIDs = []
@@ -1080,11 +1074,11 @@ def runModelKeyword(keyword, vectorMode, featureMode, contentFeatures, embedding
         label_test = []
         label_train = []
         if trainIDs[0] in errorIDList:
-            print 'first trainID is invalid!'
+            print('first trainID is invalid!')
         else:
             feature_train = featureData[trainIDs[0]]
         if testIDs[0] in errorIDList:
-            print 'first testID is invalid!'
+            print('first testID is invalid!')
         else:
             feature_test = featureData[testIDs[0]]
         for j, tweetID in enumerate(trainIDs):
@@ -1098,9 +1092,9 @@ def runModelKeyword(keyword, vectorMode, featureMode, contentFeatures, embedding
                     feature_test = vstack((feature_test, featureData[tweetID]), format='csr')
                 label_test.append(labelData[tweetID])
 
-        print 'Round: '+str(roundNum)
+        print('Round: '+str(roundNum))
         for trainMode in trainModeList:
-            print trainMode
+            print(trainMode)
             if trainMode == 'MaxEnt':
                 model = linear_model.LogisticRegression()
             elif trainMode == 'NaiveBayes':
@@ -1110,9 +1104,9 @@ def runModelKeyword(keyword, vectorMode, featureMode, contentFeatures, embedding
             else:
                 model = MLPClassifier(activation='logistic', learning_rate='constant')
 
-            print 'Training...'
+            print('Training...')
             model.fit(feature_train, label_train)
-            print 'Inference...'
+            print('Inference...')
             predictions = model.predict(feature_test)
 
             precision, recall, F1, auc = utilities.evaluate(predictions, label_test, labelMode, splitNum=splitNum)
@@ -1127,23 +1121,23 @@ def runModelKeyword(keyword, vectorMode, featureMode, contentFeatures, embedding
     outputRecallList = {}
     outputAUCList = {}
     for trainMode in trainModeList:
-        print trainMode
+        print(trainMode)
         outputF1List[trainMode] = F1SumList[trainMode] / 5
         outputPrecisionList[trainMode] = precisionSumList[trainMode] / 5
         outputRecallList[trainMode] = recallSumList[trainMode] / 5
         outputAUCList[trainMode] = aucSumList[trainMode] / 5
 
-        print outputPrecisionList[trainMode]
-        print outputRecallList[trainMode]
-        print outputF1List[trainMode]
-        print outputAUCList[trainMode]
-    print ''
+        print(outputPrecisionList[trainMode])
+        print(outputRecallList[trainMode])
+        print(outputF1List[trainMode])
+        print(outputAUCList[trainMode])
+    print('')
 
 
 def runModelGroup(groupSize, groupTitle, vectorMode, featureMode, contentFeatures, embeddingMode, trainModeList, labelMode, splitNum, ablationIndex, groupList):
     if -1 in groupList:
         groupList = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10]
-    print 'loading data...'
+    print('loading data...')
     errorIDList = []
     ids = []
     contents = []
@@ -1183,11 +1177,11 @@ def runModelGroup(groupSize, groupTitle, vectorMode, featureMode, contentFeature
     inputFile.close()
 
     if vectorMode == 1:
-        print 'Generating tfidf vectors...'
+        print('Generating tfidf vectors...')
         vectorizer = TfidfVectorizer(analyzer='word', ngram_range=(1, 5), min_df=2, stop_words='english')
         vectorMatrix = vectorizer.fit_transform(contents)
     elif vectorMode == 2:
-        print 'Generating binary ngram vectors...'
+        print('Generating binary ngram vectors...')
         vectorizer = CountVectorizer(analyzer='word', ngram_range=(1, 5), min_df=2, stop_words='english',
                                      binary='True')
         vectorMatrix = vectorizer.fit_transform(contents)
@@ -1211,7 +1205,7 @@ def runModelGroup(groupSize, groupTitle, vectorMode, featureMode, contentFeature
         model = gensim.models.doc2vec.Doc2Vec.load('models/doc2vec/general_tweet.d2v')
         tempFeatures = []
         for content in contents:
-            words = simpleTokenize(content)
+            words = word_tokenize(content)
             tempFeatures.append(numpy.array(model.infer_vector(words)))
         embeddingFeature = numpy.array(tempFeatures)
     elif embeddingMode == 3:
@@ -1229,7 +1223,7 @@ def runModelGroup(groupSize, groupTitle, vectorMode, featureMode, contentFeature
 
     if embeddingMode in [1, 2, 3]:
         if len(embeddingFeature) != len(labels):
-            print 'Embedding vector size error...'
+            print('Embedding vector size error...')
 
     if contentFeatures:
         mentionMapper = utilities.mapMention('dataset/experiment/mention.json')
@@ -1256,7 +1250,7 @@ def runModelGroup(groupSize, groupTitle, vectorMode, featureMode, contentFeature
         for index, content in enumerate(contents):
             tweetID = ids[index]
             temp = []
-            words = simpleTokenize(content)
+            words = word_tokenize(content)
             twLen = float(len(words))
             sentiScore = afinn.score(content)
             readScore = textstat.coleman_liau_index(content)
@@ -1355,7 +1349,7 @@ def runModelGroup(groupSize, groupTitle, vectorMode, featureMode, contentFeature
         F1SumList[trainMode] = 0.0
         aucSumList[trainMode] = 0.0
 
-    print 'running 5-fold CV...'
+    print('running 5-fold CV...')
     kf = KFold(n_splits=5, shuffle=True)
     for roundNum, (train_indices, test_indices) in enumerate(kf.split(ids)):
         trainIDs = []
@@ -1368,11 +1362,11 @@ def runModelGroup(groupSize, groupTitle, vectorMode, featureMode, contentFeature
         label_test = []
         label_train = []
         if trainIDs[0] in errorIDList:
-            print 'first trainID is invalid!'
+            print('first trainID is invalid!')
         else:
             feature_train = featureData[trainIDs[0]]
         if testIDs[0] in errorIDList:
-            print 'first testID is invalid!'
+            print('first testID is invalid!')
         else:
             feature_test = featureData[testIDs[0]]
         for j, tweetID in enumerate(trainIDs):
@@ -1386,9 +1380,9 @@ def runModelGroup(groupSize, groupTitle, vectorMode, featureMode, contentFeature
                     feature_test = vstack((feature_test, featureData[tweetID]), format='csr')
                 label_test.append(labelData[tweetID])
 
-        print 'Round: '+str(roundNum)
+        print('Round: '+str(roundNum))
         for trainMode in trainModeList:
-            print trainMode
+            print(trainMode)
             if trainMode == 'MaxEnt':
                 model = linear_model.LogisticRegression()
             elif trainMode == 'NaiveBayes':
@@ -1398,9 +1392,9 @@ def runModelGroup(groupSize, groupTitle, vectorMode, featureMode, contentFeature
             else:
                 model = MLPClassifier(activation='logistic', learning_rate='constant')
 
-            print 'Training...'
+            print('Training...')
             model.fit(feature_train, label_train)
-            print 'Inference...'
+            print('Inference...')
             predictions = model.predict(feature_test)
 
             precision, recall, F1, auc = utilities.evaluate(predictions, label_test, labelMode, splitNum=splitNum)
@@ -1415,21 +1409,21 @@ def runModelGroup(groupSize, groupTitle, vectorMode, featureMode, contentFeature
     outputRecallList = {}
     outputAUCList = {}
     for trainMode in trainModeList:
-        print trainMode
+        print(trainMode)
         outputF1List[trainMode] = F1SumList[trainMode] / 5
         outputPrecisionList[trainMode] = precisionSumList[trainMode] / 5
         outputRecallList[trainMode] = recallSumList[trainMode] / 5
         outputAUCList[trainMode] = aucSumList[trainMode] / 5
 
-        print outputPrecisionList[trainMode]
-        print outputRecallList[trainMode]
-        print outputF1List[trainMode]
-        print outputAUCList[trainMode]
-    print ''
+        print(outputPrecisionList[trainMode])
+        print(outputRecallList[trainMode])
+        print(outputF1List[trainMode])
+        print(outputAUCList[trainMode])
+    print('')
 
 
 def runModelGroup2(groupSize, groupTitle, vectorMode, featureMode, contentFeatures, embeddingMode, trainModeList, labelMode, splitNum, ablationIndex, trainGroupList, testGroupList):
-    print 'loading data...'
+    print('loading data...')
     errorIDList = []
     ids = []
     contents = []
@@ -1469,11 +1463,11 @@ def runModelGroup2(groupSize, groupTitle, vectorMode, featureMode, contentFeatur
     inputFile.close()
 
     if vectorMode == 1:
-        print 'Generating tfidf vectors...'
+        print('Generating tfidf vectors...')
         vectorizer = TfidfVectorizer(analyzer='word', ngram_range=(1, 5), min_df=2, stop_words='english')
         vectorMatrix = vectorizer.fit_transform(contents)
     elif vectorMode == 2:
-        print 'Generating binary ngram vectors...'
+        print('Generating binary ngram vectors...')
         vectorizer = CountVectorizer(analyzer='word', ngram_range=(1, 5), min_df=2, stop_words='english',
                                      binary='True')
         vectorMatrix = vectorizer.fit_transform(contents)
@@ -1497,7 +1491,7 @@ def runModelGroup2(groupSize, groupTitle, vectorMode, featureMode, contentFeatur
         model = gensim.models.doc2vec.Doc2Vec.load('models/doc2vec/general_tweet.d2v')
         tempFeatures = []
         for content in contents:
-            words = simpleTokenize(content)
+            words = word_tokenize(content)
             tempFeatures.append(numpy.array(model.infer_vector(words)))
         embeddingFeature = numpy.array(tempFeatures)
     elif embeddingMode == 3:
@@ -1515,7 +1509,7 @@ def runModelGroup2(groupSize, groupTitle, vectorMode, featureMode, contentFeatur
 
     if embeddingMode in [1, 2, 3]:
         if len(embeddingFeature) != len(label_train):
-            print 'Embedding vector size error...'
+            print('Embedding vector size error...')
 
     if contentFeatures:
         mentionMapper = utilities.mapMention('dataset/experiment/mention.json')
@@ -1542,7 +1536,7 @@ def runModelGroup2(groupSize, groupTitle, vectorMode, featureMode, contentFeatur
         for index, content in enumerate(contents):
             tweetID = ids[index]
             temp = []
-            words = simpleTokenize(content)
+            words = word_tokenize(content)
             twLen = float(len(words))
             sentiScore = afinn.score(content)
             readScore = textstat.coleman_liau_index(content)
@@ -1664,11 +1658,11 @@ def runModelGroup2(groupSize, groupTitle, vectorMode, featureMode, contentFeatur
     inputFile.close()
 
     if vectorMode == 1:
-        print 'Generating tfidf vectors...'
+        print('Generating tfidf vectors...')
         vectorizer = TfidfVectorizer(analyzer='word', ngram_range=(1, 5), min_df=2, stop_words='english')
         vectorMatrix = vectorizer.fit_transform(contents)
     elif vectorMode == 2:
-        print 'Generating binary ngram vectors...'
+        print('Generating binary ngram vectors...')
         vectorizer = CountVectorizer(analyzer='word', ngram_range=(1, 5), min_df=2, stop_words='english',
                                      binary='True')
         vectorMatrix = vectorizer.fit_transform(contents)
@@ -1692,7 +1686,7 @@ def runModelGroup2(groupSize, groupTitle, vectorMode, featureMode, contentFeatur
         model = gensim.models.doc2vec.Doc2Vec.load('models/doc2vec/general_tweet.d2v')
         tempFeatures = []
         for content in contents:
-            words = simpleTokenize(content)
+            words = word_tokenize(content)
             tempFeatures.append(numpy.array(model.infer_vector(words)))
         embeddingFeature = numpy.array(tempFeatures)
     elif embeddingMode == 3:
@@ -1710,7 +1704,7 @@ def runModelGroup2(groupSize, groupTitle, vectorMode, featureMode, contentFeatur
 
     if embeddingMode in [1, 2, 3]:
         if len(embeddingFeature) != len(label_train):
-            print 'Embedding vector size error...'
+            print('Embedding vector size error...')
 
     if contentFeatures:
         mentionMapper = utilities.mapMention('dataset/experiment/mention.json')
@@ -1737,7 +1731,7 @@ def runModelGroup2(groupSize, groupTitle, vectorMode, featureMode, contentFeatur
         for index, content in enumerate(contents):
             tweetID = ids[index]
             temp = []
-            words = simpleTokenize(content)
+            words = word_tokenize(content)
             twLen = float(len(words))
             sentiScore = afinn.score(content)
             readScore = textstat.coleman_liau_index(content)
@@ -1832,7 +1826,7 @@ def runModelGroup2(groupSize, groupTitle, vectorMode, featureMode, contentFeatur
         aucSumList[trainMode] = 0.0
 
     for trainMode in trainModeList:
-        print trainMode
+        print(trainMode)
         if trainMode == 'MaxEnt':
             model = linear_model.LogisticRegression()
         elif trainMode == 'NaiveBayes':
@@ -1842,9 +1836,9 @@ def runModelGroup2(groupSize, groupTitle, vectorMode, featureMode, contentFeatur
         else:
             model = MLPClassifier(activation='logistic', learning_rate='constant')
 
-        print 'Training...'
+        print('Training...')
         model.fit(feature_train, label_train)
-        print 'Inference...'
+        print('Inference...')
         predictions = model.predict(feature_test)
 
         precision, recall, F1, auc = utilities.evaluate(predictions, label_test, labelMode, splitNum=splitNum)
@@ -1859,17 +1853,17 @@ def runModelGroup2(groupSize, groupTitle, vectorMode, featureMode, contentFeatur
     outputRecallList = {}
     outputAUCList = {}
     for trainMode in trainModeList:
-        print trainMode
+        print(trainMode)
         outputF1List[trainMode] = F1SumList[trainMode] / 5
         outputPrecisionList[trainMode] = precisionSumList[trainMode] / 5
         outputRecallList[trainMode] = recallSumList[trainMode] / 5
         outputAUCList[trainMode] = aucSumList[trainMode] / 5
 
-        print outputPrecisionList[trainMode]
-        print outputRecallList[trainMode]
-        print outputF1List[trainMode]
-        print outputAUCList[trainMode]
-    print ''
+        print(outputPrecisionList[trainMode])
+        print(outputRecallList[trainMode])
+        print(outputF1List[trainMode])
+        print(outputAUCList[trainMode])
+    print('')
 
 
 def validateFull(trainMode, labelMode, featureMode, splitNum):
@@ -1902,22 +1896,22 @@ def validateFull(trainMode, labelMode, featureMode, splitNum):
 
     predictions = []
     label_test = []
-    for id, dist in data.items():
+    for id, dist in list(data.items()):
         label_test.append(int(labelData[id]))
-        predictions.append(int(max(dist.iteritems(), key=operator.itemgetter(1))[0]))
+        predictions.append(int(max(iter(dist.items()), key=operator.itemgetter(1))[0]))
 
     precision, recall, F1, auc = utilities.evaluate(predictions, label_test, labelMode, splitNum=splitNum)
-    print str(trainMode)+'\t' +str(labelMode)+'\t' +str(featureMode)+'\t' +str(splitNum)
-    print precision
-    print recall
-    print F1
-    print auc
-    print ''
+    print(str(trainMode)+'\t' +str(labelMode)+'\t' +str(featureMode)+'\t' +str(splitNum))
+    print(precision)
+    print(recall)
+    print(F1)
+    print(auc)
+    print('')
 
 
 def runModelDiff(groupSize, groupTitle, vectorMode, featureMode, contentFeatures, embeddingMode, trainModeList, labelMode, splitNum, ablationIndex, removeOutliers=True):
-    print groupTitle
-    print 'loading data...'
+    print(groupTitle)
+    print('loading data...')
     errorIDList = []
     ids = []
     contents = []
@@ -1959,17 +1953,17 @@ def runModelDiff(groupSize, groupTitle, vectorMode, featureMode, contentFeatures
     inputFile.close()
 
     if vectorMode == 1:
-        print 'Generating tfidf vectors...'
+        print('Generating tfidf vectors...')
         vectorizer = TfidfVectorizer(analyzer='word', ngram_range=(1, 5), min_df=2, stop_words='english')
         vectorMatrix = vectorizer.fit_transform(contents)
     elif vectorMode == 2:
-        print 'Generating binary ngram vectors...'
+        print('Generating binary ngram vectors...')
         vectorizer = CountVectorizer(analyzer='word', ngram_range=(1, 5), min_df=2, stop_words='english',
                                      binary='True')
         vectorMatrix = vectorizer.fit_transform(contents)
 
     if embeddingMode == 1:
-        print 'generating CMU embeddings...'
+        print('generating CMU embeddings...')
         totalFile = open('dataset/experiment/total.json', 'r')
         totalIDList = []
         for line in totalFile:
@@ -1988,7 +1982,7 @@ def runModelDiff(groupSize, groupTitle, vectorMode, featureMode, contentFeatures
         model = gensim.models.doc2vec.Doc2Vec.load('models/doc2vec/general_tweet.d2v')
         tempFeatures = []
         for content in contents:
-            words = simpleTokenize(content)
+            words = word_tokenize(content)
             tempFeatures.append(numpy.array(model.infer_vector(words)))
         embeddingFeature = numpy.array(tempFeatures)
     elif embeddingMode == 3:
@@ -2006,7 +2000,7 @@ def runModelDiff(groupSize, groupTitle, vectorMode, featureMode, contentFeatures
 
     if embeddingMode in [1, 2, 3]:
         if len(embeddingFeature) != len(labels):
-            print 'Embedding vector size error...'
+            print('Embedding vector size error...')
 
     if contentFeatures:
         mentionMapper = utilities.mapMention('dataset/experiment/mention.json')
@@ -2033,7 +2027,7 @@ def runModelDiff(groupSize, groupTitle, vectorMode, featureMode, contentFeatures
         for index, content in enumerate(contents):
             tweetID = ids[index]
             temp = []
-            words = simpleTokenize(content)
+            words = word_tokenize(content)
             twLen = float(len(words))
             sentiScore = afinn.score(content)
             readScore = textstat.coleman_liau_index(content)
@@ -2124,7 +2118,7 @@ def runModelDiff(groupSize, groupTitle, vectorMode, featureMode, contentFeatures
         featureData[ids[lineNum]] = features.getrow(lineNum)
         contentData[ids[lineNum]] = contents[lineNum]
 
-    print 'running prediction...'
+    print('running prediction...')
     roundNum = 1
     if removeOutliers:
         indexFile = open('dataset/experiment/fold_indicies/' + groupTitle + '_' + str(groupSize) + '.'+str(roundNum), 'r')
@@ -2139,11 +2133,11 @@ def runModelDiff(groupSize, groupTitle, vectorMode, featureMode, contentFeatures
     label_train = []
     content_test = []
     if trainIDs[0] in errorIDList:
-        print 'first trainID is invalid!'
+        print('first trainID is invalid!')
     else:
         feature_train = featureData[trainIDs[0]]
     if testIDs[0] in errorIDList:
-        print 'first testID is invalid!'
+        print('first testID is invalid!')
     else:
         feature_test = featureData[testIDs[0]]
     for j, tweetID in enumerate(trainIDs):
@@ -2158,9 +2152,9 @@ def runModelDiff(groupSize, groupTitle, vectorMode, featureMode, contentFeatures
             label_test.append(labelData[tweetID])
             content_test.append(contentData[tweetID]+'\t'+str(tweetID))
 
-    print 'Round: '+str(roundNum)
+    print('Round: '+str(roundNum))
     for trainMode in trainModeList:
-        print trainMode
+        print(trainMode)
         if trainMode == 'MaxEnt':
             model = linear_model.LogisticRegression()
         elif trainMode == 'NaiveBayes':
@@ -2170,9 +2164,9 @@ def runModelDiff(groupSize, groupTitle, vectorMode, featureMode, contentFeatures
         else:
             model = MLPClassifier(activation='logistic', learning_rate='constant')
 
-        print 'Training...'
+        print('Training...')
         model.fit(feature_train, label_train)
-        print 'Inference...'
+        print('Inference...')
         predictions = model.predict(feature_test)
 
         #precision, recall, F1, auc = utilities.evaluate(predictions, label_test, labelMode, splitNum=splitNum)
@@ -2193,6 +2187,195 @@ def runModelDiff(groupSize, groupTitle, vectorMode, featureMode, contentFeatures
         outPredictLabelFile.close()
 
 
+def runModelCommTweets(dataFilename, resultFilename, featureMode, contentFeatures, embeddingMode, trainModeList):
+    resultFile = open(resultFilename, 'a')
+
+    print('loading data...')
+    errorIDList = []
+    ids = []
+    contents = []
+    # scores = []
+    days = []
+    time = []
+    labels = []
+    usernames = []
+    additionalFeatures = []
+    authorFollowers = []
+    authorStatusCount = []
+    authorFavoriteCount = []
+    authorListedCount = []
+    authorIntervals = []
+    parseLength = []
+    headCount = []
+    POScounts = []
+
+    inputFile = open(dataFilename, 'r')
+    for line in inputFile:
+        item = json.loads(line.strip())
+        ids.append(str(item['id']))
+        contents.append(item['content'])
+        labels.append(item['label'])
+        time.append(utilities.hourMapper(item['hour']))
+        days.append(dayMapper[item['day']])
+        usernames.append(item['mentions'])
+        # scores.append(float(item['score']))
+        authorFollowers.append(item['author_followers_count'])
+        authorStatusCount.append(item['author_statuses_count'])
+        authorFavoriteCount.append(item['author_favorite_count'])
+        authorListedCount.append(item['author_listed_count'])
+        authorIntervals.append(item['authorInterval'])
+        parseLength.append(item['length'])
+        headCount.append(item['head_count'])
+        POScounts.append(utilities.POSRatio(item['pos_count']))
+    inputFile.close()
+
+    if embeddingMode == 1:
+        embeddingFeature = numpy.load('dataset/experiment/vector/CMU_total_emd.npy')
+        resultFile.write('CMU Twitter Hashtag embedding' + '\n')
+    elif embeddingMode == 2:
+        model = gensim.models.doc2vec.Doc2Vec.load('models/doc2vec/general_tweet.d2v')
+        tempFeatures = []
+        for content in contents:
+            words = word_tokenize(content)
+            tempFeatures.append(numpy.array(model.infer_vector(words)))
+        embeddingFeature = numpy.array(tempFeatures)
+        resultFile.write('MIT Twitter Embedding' + '\n')
+    elif embeddingMode == 3:
+        w2v = word2vecReader.Word2Vec()
+        embModel = w2v.loadModel()
+        tempFeatures = []
+        for id, content in zip(ids, contents):
+            tweetVec = utilities.content2vec(embModel, content)
+            if tweetVec == None:
+                errorIDList.append(id)
+                tempFeatures.append(numpy.zeros(400))
+            else:
+                tempFeatures.append(tweetVec)
+        embeddingFeature = numpy.array(tempFeatures)
+        resultFile.write('gneral twitter word2vec + CBOW' + '\n')
+    else:
+        resultFile.write('no twitter embedding' + '\n')
+
+    if embeddingMode < 4:
+        if len(embeddingFeature) != len(labels):
+            print(len(embeddingFeature))
+            print(len(labels))
+            print('Embedding vector size error...')
+
+    if contentFeatures:
+        resultFile.write('with content features' + '\n')
+        mentionMapper = utilities.mapMention('dataset/commTweets/mention.json')
+        afinn = Afinn()
+
+        for index, content in enumerate(contents):
+            temp = []
+            words = word_tokenize(content)
+            twLen = float(len(words))
+            sentiScore = afinn.score(content)
+            readScore = textstat.coleman_liau_index(content)
+            temp.append(sentiScore / twLen)
+            temp.append(twLen)
+            temp.append(readScore)
+            temp.append(parseLength[index] / twLen)
+            temp.append(headCount[index] / twLen)
+            temp.append(authorStatusCount[index] / authorIntervals[index])
+            temp.append(authorFavoriteCount[index] / authorStatusCount[index])
+            temp.append(authorListedCount[index] / authorFollowers[index])
+            temp.append(days[index])
+            temp.append(time[index])
+            temp.append(1 if any(char.isdigit() for char in content) else 0)
+            temp += POScounts[index]
+            # temp.append(content.count('URRL'))
+            temp.append(1 if content.count('http://URL') > 0 else 0)
+            # temp.append(content.count('HHTTG'))
+            temp.append(1 if content.count('#HTG') > 0 else 0)
+            # temp.append(content.count('USSERNM'))
+            temp.append(1 if content.count('@URNM') > 0 else 0)
+            # temp.append(content.count('!'))
+            temp.append(1 if content.count('!') > 0 else 0)
+            # temp.append(content.count('?'))
+            temp.append(1 if content.count('?') > 0 else 0)
+            mentionFlag = 0
+            mentionFollowers = 0
+            userCount = 0.0
+            for user in usernames[index]:
+                if user in mentionMapper:
+                    userCount += 1
+                    if mentionMapper[user][0] == 1:
+                        mentionFlag = 1
+                    mentionFollowers += mentionMapper[user][1]
+            temp.append(mentionFlag)
+
+            if userCount == 0:
+                temp.append(0.0)
+            else:
+                temp.append(mentionFollowers / userCount)
+            additionalFeatures.append(numpy.array(temp))
+    else:
+        resultFile.write('no content features' + '\n')
+
+    if featureMode == 0:
+        resultFile.write('content features only \n')
+        features = csr_matrix(numpy.array(additionalFeatures))
+    elif featureMode == 2:
+        resultFile.write('content and embedding' + '\n')
+        features = hstack((embeddingFeature, csr_matrix(numpy.array(additionalFeatures))), format='csr')
+    elif featureMode == 3:
+        resultFile.write('embedding only' + '\n')
+        features = csr_matrix(embeddingFeature)
+    resultFile.flush()
+
+    precisionList = {}
+    recallList = {}
+    F1List = {}
+    aucList = {}
+    for trainMode in trainModeList:
+        precisionList[trainMode] = 0.0
+        recallList[trainMode] = 0.0
+        F1List[trainMode] = 0.0
+        aucList[trainMode] = 0.0
+
+    feature_train, feature_test, label_train, label_test = train_test_split(features, labels, test_size=0.2, shuffle=True, random_state=42)
+    for trainMode in trainModeList:
+        print(trainMode)
+        if trainMode == 'MaxEnt':
+            model = linear_model.LogisticRegression()
+        elif trainMode == 'NaiveBayes':
+            model = MultinomialNB()
+        elif trainMode == 'SVM':
+            model = svm.SVC(probability=True)
+        else:
+            model = MLPClassifier(activation='logistic', learning_rate='constant')
+
+        print('Training...')
+        model.fit(feature_train, label_train)
+        print('Inference...')
+        predictions = model.predict(feature_test)
+
+        precision, recall, F1, auc = utilities.evaluate2(predictions, label_test)
+        precisionList[trainMode] = precision
+        recallList[trainMode] = recall
+        F1List[trainMode] = F1
+        aucList[trainMode] = auc
+
+    for trainMode in trainModeList:
+        print(trainMode)
+        print(precisionList[trainMode])
+        print(recallList[trainMode])
+        print(F1List[trainMode])
+        print(aucList[trainMode])
+
+        resultFile.write(trainMode)
+        resultFile.write(str(precisionList[trainMode]) + '\n')
+        resultFile.write(str(recallList[trainMode]) + '\n')
+        resultFile.write(str(F1List[trainMode]) + '\n')
+        resultFile.write(str(aucList[trainMode]) + '\n')
+        resultFile.write('\n')
+        resultFile.flush()
+    print('')
+    resultFile.close()
+
+
 if __name__ == "__main__":
     #groupSize, groupTitle, vectorMode, featureMode, contentFeatures, embeddingMode, trainModeList, labelMode, splitNum, recordProb, ablationIndex
     # [vectorMode] 1: tfidf, 2: binaryCount, 4: None
@@ -2207,23 +2390,17 @@ if __name__ == "__main__":
     #runModel2(2.4, 'simGroup_binary', 2, 1, False, 0, trainModeList, 2, 5, 100, True)
 
 
-    trainModeList = ['SVM']
+    trainModeList = ['SVM', 'MaxEnt']
     #runModel2(5.4, 'simGroup_emb', 4, 0, True, 0, trainModeList, 2, 5, 0, True)
-    #runModel2(5.4, 'simGroup_emb', 4, 0, True, 0, trainModeList, 2, 5, 1, True)
-    #runModel2(5.4, 'simGroup_emb', 4, 0, True, 0, trainModeList, 2, 5, 2, True)
-    #runModel2(5.4, 'simGroup_emb', 4, 0, True, 0, trainModeList, 2, 5, 3, True)
-    #runModel2(5.4, 'simGroup_emb', 4, 0, True, 0, trainModeList, 2, 5, 4, True)
-    #runModel2(5.4, 'simGroup_emb', 4, 0, True, 0, trainModeList, 2, 5, 5, True)
-    #runModel2(5.4, 'simGroup_emb', 4, 0, True, 0, trainModeList, 2, 5, 6, True)
-    #runModel2(5.4, 'simGroup_emb', 4, 0, True, 0, trainModeList, 2, 5, 7, True)
-    #runModel2(5.4, 'simGroup_emb', 4, 0, True, 0, trainModeList, 2, 5, 8, True)
+
 
     #runModelGroup2(5, 'simGroup_binary', 4, 0, True, 0, trainModeList, 2, 5, 100, [0, 1, 2, 4], [3])
 
-    runModelDiff(5.4, 'simGroup_emb', 2, 1, False, 0, ['MaxEnt'], 2, 5, 100, True)
-    runModelDiff(5.4, 'simGroup_emb', 4, 0, True, 0, ['SVM'], 2, 5, 100, True)
-    runModelDiff(5.4, 'simGroup_emb', 4, 3, False, 1, ['SVM'], 2, 5, 100, True)
+    #runModelDiff(5.4, 'simGroup_emb', 2, 1, False, 0, ['MaxEnt'], 2, 5, 100, True)
+    #runModelDiff(5.4, 'simGroup_emb', 4, 0, True, 0, ['SVM'], 2, 5, 100, True)
 
     #runModelKeyword('iphone', 2, 1, False, 0, trainModeList, 2, 5, 100)
 
     #shuffleTweetsSimple(True)
+
+    runModelCommTweets('dataset/commTweets/features.json', 'dataset/commTweets/results.txt', 2, True, 2, trainModeList)
